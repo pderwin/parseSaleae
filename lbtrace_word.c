@@ -1,7 +1,7 @@
 #include <stdio.h>
-#include <trace.h>
 #include <stdlib.h>
 #include <string.h>
+#include <drivers/trace.h>
 #include "parseSaleae.h"
 
 // #define DEBUG 1
@@ -9,7 +9,7 @@
 //
 // cannot use cycle count with mpu-enabled build.  See drivers/trace/trace.c
 //
-#define HAVE_CYCLE_COUNT 0
+#define HAVE_CYCLE_COUNT 1
 
 enum {
    STATE_IDLE,
@@ -19,23 +19,11 @@ enum {
    STATE_GET_WORDS,
 };
 
-static unsigned int
-   state;
-
-#define PACKET_MAXIMUM_WORDS ( 5 )
-
-static unsigned int
-   cycle_count,
-   packet_accumulated_words,
-   lineno,
-   size_words,
-   packet_words[PACKET_MAXIMUM_WORDS],
-   tag;
-
 /**
  ****************************************************************************************************
  *
- * \brief
+ * \brief    We've accumulated a word of data off of the serial lines.  Process this into a
+ *           completed packet, and then parse it when the packet is fully received.
  *
  * \param
  *
@@ -43,94 +31,112 @@ static unsigned int
  *
  *****************************************************************************************************/
 void
-   lbtrace_word_process (unsigned int word)
+   lbtrace_word_process ( lbtrace_state_t *lbtrace_state, time_nsecs_t time_nsecs, unsigned int word)
 {
+   packet_accumulation_t
+      *pa;
+
+   pa = &lbtrace_state->packet_accumulation;
 
 #ifdef DEBUG
-   printf("WORD: %x state: %d accumulated: %d size_words: %d [ %x %x %x %x %x ] \n", word, state, packet_accumulated_words, size_words,
+   printf("%10lld: WORD: %x state: %d accumulated: %d size_words: %d [ %x %x %x %x %x ] \n\n",
+	  time_nsecs,
+	  word, lbtrace_state->state, packet_accumulated_words, size_words,
 	  packet_words[0],
 	  packet_words[1],
 	  packet_words[2],
 	  packet_words[3],
 	  packet_words[4]);
 #endif
-   
-   switch(state) {
+
+   switch(pa->state) {
       case STATE_IDLE:
-	 if (word == TRACE_MAGIC) {
+	 if (word == TRACE_MAGIC || word == TRACE_MAGIC_WITH_CYCLE_COUNT) {
 
 /*
  * Get rid of stale data.
  */
-	    packet_accumulated_words = 0;
-	    memset(packet_words, 0x11, sizeof(packet_words));
-   
-#if HAVE_CYCLE_COUNT
-	    state = STATE_CYCLE_COUNT;
-#else	    
-	    state = STATE_PACKET_SIZE;
-#endif	    
+	    pa->accumulated_words = 0;
+	    memset(pa->packet, 0x11, sizeof(pa->packet));
+
+
+	    pa->state = (word == TRACE_MAGIC) ? STATE_PACKET_SIZE : STATE_CYCLE_COUNT;
 	 }
 	 else {
-	    printf("INFO: not synchronized.  Ignore: %x \n", word);
+	    printf("INFO: not synchronized.  Ignore: %x (lbtrace: %d) \n", word, lbtrace_state->which);
 	 }
-	 
+
 	 break;
 
       case STATE_CYCLE_COUNT:
-	 cycle_count = word;
-	 state = STATE_PACKET_SIZE;
+	 pa->cycle_count = word;
+	 pa->state = STATE_PACKET_SIZE;
 	 break;
-	 
+
 	 /*
 	  * When we get this word, it will have the line number and the number of remaining words together
 	  */
       case STATE_PACKET_SIZE:
 
-	 lineno = word & 0xffff;
+	 pa->lineno = word & 0xffff;
 
 	 /*
 	  * Get the number of words of payload which follow the tag word.
 	  */
-	 size_words = ((word >> 28) & 0xf);
+	 pa->size_words = ((word >> 28) & 0xf);
 
-	 if (size_words >=PACKET_MAXIMUM_WORDS) {
-	    printf("ERROR: invalid packet size: %x \n", size_words);
-	    state = STATE_IDLE;
+	 if (pa->size_words > NUMBER_PACKET_ENTRIES) {
+	    printf("ERROR: invalid packet size: %x \n", pa->size_words);
+	    pa->state = STATE_IDLE;
 	 }
 	 else {
-	    state = STATE_GET_TAG;
+	    pa->state = STATE_GET_TAG;
 	 }
 	 break;
 
       case STATE_GET_TAG:
-	 tag = word;
-	 state = STATE_GET_WORDS;
+	 pa->tag = word;
+	 pa->state = STATE_GET_WORDS;
 
 	 /*
 	  * If no optional arguments, then process the packet now.
 	  */
-	 if (size_words == 0) {
-	    packet_process(tag, lineno, 0, NULL);
-	    state = STATE_IDLE;
+	 if (pa->size_words == 0) {
+	    packet_process(lbtrace_state->which, time_nsecs, pa->tag, pa->lineno, 0, NULL);
+	    pa->state = STATE_IDLE;
 	 }
 	 break;
-	 
+
       case STATE_GET_WORDS:
-	 packet_words[packet_accumulated_words++] = word;
+	 pa->packet[pa->accumulated_words++] = word;
 
-	 if (packet_accumulated_words == size_words) {
-	    
-	    packet_process(tag, lineno, packet_accumulated_words, packet_words);
+	 if (pa->accumulated_words == pa->size_words) {
 
-	    state = STATE_IDLE;
+	    /*
+	     * If the trace data has cycle counts, then use that for the time stamp
+	     */
+	    if (pa->cycle_count) {
+
+	       /*
+		* Cycle count is in terms of uSecs
+		*/
+	       time_nsecs = (pa->cycle_count * 1000);
+	    }
+
+	    packet_process(lbtrace_state->which,
+			   time_nsecs,
+			   pa->tag,
+			   pa->lineno,
+			   pa->accumulated_words,
+			   pa->packet);
+
+	    pa->state = STATE_IDLE;
 	 }
 	 break;
-	 
+
       default:
-	 printf("ERROR: invalid state: %d \n", state);
+	 printf("ERROR: invalid state: %d \n", pa->state);
 	 exit(1);
-	 
+
    } // end of switch
 }
-

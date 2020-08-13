@@ -1,55 +1,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <trace.h>
+#include "hdr.h"
+#include "log_file.h"
 #include "parseSaleae.h"
 
-const char *size_strs[] = {
-   "?",
-   "?",
-   "?",    
-   "?",   
-   " 32B", 
-   " 64B", 
-   "128B", 
-   "256B",
-   "512B", 
-   "  1K",   
-   "  2K",   
-   "  4K",   
-   "  8K",   
-   " 16K", 
-   " 32K",  
-   " 64K",  
-   "128K", 
-   "256K", 
-   "512K", 
-   "  1M",   
-   "  2M",  
-   "  4M",  
-   "  8M",  
-   " 16M", 
-   " 32M",  
-   " 64M", 
-   "128M", 
-   "256M", 
-   "512M", 
-   "  1G",  
-   "  2G",  
-   "  4G"
-};
-
-
-int          sample;
-unsigned int uart;
-static long long int time_stamp;
-
-enum {
-   TAG_WORD,
-   TAG_UART,
-   TAG_ZEROX
-};
-
 /**
  ****************************************************************************************************
  *
@@ -60,28 +15,9 @@ enum {
  * \returns
  *
  *****************************************************************************************************/
-long long int get_time_stamp (void)
+void hdr(log_file_t *lf, time_nsecs_t time_nsecs, char *h)
 {
-   return time_stamp;
-}
-
-FILE
-   *fp;
-static unsigned int next (unsigned int *tag_typeP);
-
-/**
- ****************************************************************************************************
- *
- * \brief
- *
- * \param
- *
- * \returns
- *
- *****************************************************************************************************/
-void hdr(char *h)
-{
-   hdr_with_lineno(h, 0);
+    hdr_with_lineno(lf, time_nsecs, h, 0);
 }
 
 /**
@@ -94,37 +30,39 @@ void hdr(char *h)
  * \returns
  *
  *****************************************************************************************************/
-void hdr_with_lineno (char *h, unsigned int lineno)
+void hdr_with_lineno (log_file_t *lf, time_nsecs_t time_nsecs, char *h, unsigned int lineno)
 {
-   static long long int
-      last_time_stamp = 0;
+    FILE *fp = lf->fp;
+    time_nsecs_t last_time_nsecs = lf->time_nsecs;
 
    /*
     * If first time in, then init last time stamp
     */
-   if (last_time_stamp == 0) {
-      last_time_stamp = time_stamp;
+   if (last_time_nsecs == 0) {
+      last_time_nsecs = time_nsecs;
    }
-   
-   print_time_stamp(time_stamp);
-   printf("| ");
-   
-   print_time_stamp(time_stamp - last_time_stamp);
-   printf("| ");
+
+   fprintf(fp, "\n");
+   print_time_nsecs(fp, time_nsecs);
+   fprintf(fp, "| ");
+
+   print_time_nsecs(fp, time_nsecs - last_time_nsecs);
+   fprintf(fp, "| ");
 
    /*
     * save for next call.
     */
-   last_time_stamp = time_stamp;
+   lf->time_nsecs = time_nsecs;
 
-   printf("%-20.20s | ", h);
+   fprintf(fp, "%-25.25s | ", h);
+
    if (lineno) {
-      printf("%4d", lineno);
+       fprintf(fp, "%4d", lineno);
    }
    else {
-      printf("    ");
+       fprintf(fp, "    ");
    }
-   printf(" | ");
+   fprintf(fp, " | ");
 }
 
 /**
@@ -137,73 +75,23 @@ void hdr_with_lineno (char *h, unsigned int lineno)
  * \returns
  *
  *****************************************************************************************************/
-void
-   print_time_stamp (long long int time_stamp)
+void print_time_nsecs (FILE *fp, time_nsecs_t time_nsecs)
 {
-   if (time_stamp < 0) {
-      printf("-");
-      time_stamp = -time_stamp;
-   }
-   else {
-	printf(" ");
-   }
-   
-   if (time_stamp > 1000000) { 
-	 printf("%7.2f ms ", time_stamp / 1000000.0);
-   }
-   else if (time_stamp > 1000) { 
-	 printf("%7.2f us ", time_stamp / 1000.0);
-   }
-   else {
-      printf("%7lld ns ", time_stamp / 1000);
-   }
+    if (time_nsecs < 0) {
+	fprintf(fp, "-");
+	time_nsecs = -time_nsecs;
+    }
+    else {
+	fprintf(fp, " ");
+    }
+
+    if (time_nsecs > 1000000) {
+	fprintf(fp, "%8.2f ms ", time_nsecs / 1000000.0);
+    }
+    else if (time_nsecs > 1000) {
+	fprintf(fp, "%8.2f us ", time_nsecs / 1000.0);
+    }
+    else {
+	fprintf(fp, "%8lld ns ", time_nsecs / 1000);
+    }
 }
-
-static unsigned int next (unsigned int *tag_typeP)
-{
-   char
-      buf[256],
-      *cp,
-      *w;
-   unsigned int
-      tag_type,
-      value;
-   
-   if (fgets(buf, sizeof(buf), fp) == NULL) {
-      printf("DONE\n");
-      exit(0);
-   }   
-   
-#define TERM " \n"
-   
-   time_stamp = strtol(strtok(buf, TERM), NULL, 10);
-   sample     = strtol(strtok(NULL, TERM), NULL, 10);
-   w          = strtok(NULL, TERM);
-
-   cp = strtok(NULL, TERM);
-   if (cp) {
-      value      = strtol(cp, NULL, 16);
-   }
-   else {
-      value = 0xffffffff;
-   }
-
-   if (! strcmp(w, "UART:")) {
-      tag_type = TAG_UART;
-   }
-   else if (! strcmp(w, "ZEROX:")) {
-      tag_type = TAG_ZEROX;
-   }
-   else {
-      tag_type = TAG_WORD;
-   }
-   
-   if (tag_typeP) {
-      *tag_typeP = tag_type;
-   }
-   
-   return(value);
-}
-
-
-

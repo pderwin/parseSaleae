@@ -19,7 +19,7 @@ void
    static unsigned int last_RTS = 0;
 
    if ((frame->RTS != last_RTS)) {
-      hdr(frame);
+       hdr(stdout, frame->time_nsecs, "RTS");
       printf("RTS: %s\n", frame->RTS ? "Rise":"Fall");
 
       last_RTS = frame->RTS;

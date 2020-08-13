@@ -6,92 +6,127 @@
 #include "parseSaleae.h"
 
 static void
-   processInputFile (char *inputFileName);
+   process_input_file (char *inputFileName, unsigned int use_hex);
 
-static void
-   process_frame (frame_t *frame);
-Csv_t
-   csv_time,
-   csv_trigger;
-
-lbtrace_state_t
-   lbtrace_state_0 = { .idx = 0 },
-   lbtrace_state_1 = { .idx = 1 };
+static unsigned int
+   use_uart;
 
 int
    main(int argc, char *argv[])
 {
    char
+      *elf_file      = NULL,
       *inputFileName = NULL;
+   unsigned int
+      use_hex        = 0;
 
-   setbuf(stdout, NULL);
+   use_uart = 1;
+
+//   setbuf(stdout, NULL);
 
    printf("parseSaleae v1.0\n");
-   
+
+   /*
+    * Print wall-clock time.
+    */
+   localtime_print(stdout);
+
    {
       int c;
 
       static struct option long_options[] = {
-	 {"help",   0, 0, 0},
+	 {"elf",     required_argument, 0, 'e'},
+	 {"hex",     0, 0, 'x'},
+	 {"help",    0, 0,   0},
+	 {"tags",    0, 0, 't'},
 	 {0, 0, 0, 0}
       };
 
       while (1) {
 	 int option_index = 0;
 
-	 c = getopt_long (argc, argv, "hv:", long_options, &option_index);
+	 c = getopt_long (argc, argv, "e:htv:", long_options, &option_index);
 	 if (c == -1)
 	    break;
 
 	 switch (c) {
 
+	    case 'e':
+	       elf_file = strdup(optarg);
+	       printf("\n");
+	       break;
+
+	    case 't':
+	       atexit(tag_dump);
+	       break;
+
+	    case 'x':
+	       printf("Read HEX formatted file\n");
+	       use_hex = 1;
+	       break;
+
 	    default:
 	    case 'h':
 	       printf("parseTrace - parse Trace and likely create a listing\n\n");
 	       printf("Usage:\n");
-	       printf("\tparseJtag input_file_name \n\n");
+	       printf("\tparseSaleae input_file_name \n\n");
+	       printf("\tno-uart, n : don't print uart traffic\n");
 	       exit(0);
 	 }
       }
    }
 
-
    if (optind < argc) {
       inputFileName = argv[optind];
    }
+   /*
+    * Must clear this due to getopt() being called in GDB routines.
+    */
+   optind = 0;
 
-   printf("INPUT FILE NAME: '%s' \n", inputFileName);
+   if (elf_file) {
+      addr2line_init(elf_file);
+      lookup_init(elf_file);
+   }
+
+   printf("input file: '%s' \n\n", inputFileName);
 
    /*
     * Open and process the input file.
     */
-   processInputFile(inputFileName);
+   process_input_file(inputFileName, use_hex);
 
-   return(0);
+   exit(0);
 }
 
+#if 0
 static void
    findLbtrace(unsigned int idx, lbtrace_t *lbtrace)
 {
    char
       name[128];
+   unsigned int
+      j = idx+1;
 
-   sprintf(name, "d0_%d", idx);
+   /*
+    * Use naming converntion of XXX_J1 and XXX_J2 for index 0 and 1.
+    */
+   sprintf(name, "d0_j%d", j);
    csv_find(name, &lbtrace->data0);
-   
-   sprintf(name, "d1_%d", idx);
+
+   sprintf(name, "d1_j%d", j);
    csv_find(name, &lbtrace->data1);
 
-   sprintf(name, "clk_%d", idx);
-
+   sprintf(name, "clk_j%d", j);
    csv_find(name, &lbtrace->clk);
 
-   sprintf(name, "trigger_%d", idx);
+   sprintf(name, "trigger_j%d", j);
    csv_find(name, &lbtrace->trigger);
-   
-   sprintf(name, "irq_%d", idx);
-   csv_find(name, &lbtrace->irq);
+
+   sprintf(name, "misc_j%d", j);
+   csv_find(name, &lbtrace->misc);
 }
+#endif
 
 /**
  ****************************************************************************************************
@@ -104,10 +139,8 @@ static void
  *
  *****************************************************************************************************/
 static void
-   processInputFile (char *inputFileName)
+   process_input_file (char *inputFileName, unsigned int use_hex)
 {
-   unsigned int
-      sample = 0;
    FILE
       *fp;
    frame_t
@@ -116,112 +149,17 @@ static void
 
    memset(&current_frame, 0, sizeof(current_frame));
    memset(&next_frame,    0, sizeof(next_frame));
-   
+
    if ((fp = fopen(inputFileName, "rb")) == NULL) {
       printf("Error opening input file: %s\n",
 	     inputFileName);
       exit(1);
    }
 
-
-   /*
-    * Process the header off of the file.
-    */
-   csv_header_read(fp);
-
-   csv_find_time("Time [s]", &next_frame.time_nsecs);
-
-   /*
-    * Find the CSV fields of interest
-    */
-   findLbtrace(0, &next_frame.lbtrace_0);
-   findLbtrace(1, &next_frame.lbtrace_1);
-   
-   /*
-    * Try to find uart entries.
-    */
-   csv_find("G2_xmit", &next_frame.G2_xmit);
-   csv_find("G2_recv", &next_frame.G2_recv);
-   
-   csv_find("RTS", &next_frame.RTS);
-
-   next_frame.G2_xmit = 1;
-   next_frame.G2_recv = 1;
-   
-   /*
-    * Read the first frame and process it.  Fills in values in 'next_frame'.
-    */
-//   printf("Before read: %d %p \n", next_frame.lbtrace_1.idx, &next_frame.lbtrace_1.idx);
-   
-   csv_data_read(fp);
-
-//   printf("After read: %d %p \n", next_frame.lbtrace_1.idx, &next_frame.lbtrace_1.idx);
-
-   memcpy(&current_frame, &next_frame, sizeof(current_frame));
-   
-   process_frame(&current_frame);
-
-   /*
-    * Read frames and process them.
-    */
-   while(csv_data_read(fp)) {
-
-      next_frame.sample = sample++;
-      
-      /*
-       * process frames until we would pass the timestamp of the next frame.
-       */
-      while(current_frame.time_nsecs < next_frame.time_nsecs) {
-	 
-	 process_frame(&current_frame);
-	 
-	 current_frame.time_nsecs += SAMPLE_TIME;
-      }
-
-
-      /*
-       * At this point, we copy the next frame into 'current' and repeat.
-       */
-      memcpy(&current_frame, &next_frame, sizeof(current_frame));
+   if (use_hex) {
+      hex_process_file(fp);
    }
-
-   printf("%d lines processed\n", sample);
-}
-
-
-#if 0 
-   /*
-    * Convert the time to just nSecs
-    */
-   if (csv_time) {
-      frame->time_nsecs = convertTime(csv_time);
+   else {
+      csv_process_file(fp);
    }
-   
-   if (csv_data_0 && csv_data_1) {
-      frame->data   = (csv_data_1->value << 1) | csv_data_0->value;
-   }
-
-   if (csv_clk) {
-      frame->clk    = csv_clk->value;
-   }
-   
-   return(1);
-}
-#endif
-
-static void
-   process_frame (frame_t *frame)
-{
-   /*
-    * If we detected a falling edge of CLK, then process this frame.
-    */
-   lbtrace_check(frame, &frame->lbtrace_0, &lbtrace_state_0);
-//   lbtrace_check(frame, &frame->lbtrace_1);
-
-   /*
-    * Process all uart entries.
-    */
-   uart_process(frame);
-
-   rts_process(frame);
 }

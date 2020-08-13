@@ -1,0 +1,13 @@
+#!/bin/sh
+# clear
+
+# printf "\n\nCSV \n\n"
+make --quiet -C ~/libs/csv
+
+# printf "\n\nPARSE_LCD \n\n"
+make --quiet RSYNC
+make --quiet -j 2 &> /tmp/compile.log
+clear
+head -40 /tmp/compile.log
+# make --quiet desc.lst
+date
