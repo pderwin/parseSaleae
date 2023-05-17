@@ -23,8 +23,6 @@ void signal_deglitch (parser_t *parser, time_nsecs_t time_nsecs)
      */
     signal = parser->signals;
 
-    printf("   parser: %s\n", parser->name);
-
     while(signal->name) {
 
 	/*
@@ -41,15 +39,11 @@ void signal_deglitch (parser_t *parser, time_nsecs_t time_nsecs)
 	 */
 	if (signal->_buffered_raw != *signal->val_p) {
 
-	    printf("got difference %s %lld  _raw: %x  val_p: %x dg: %lld \n", signal->name, time_nsecs, signal->_raw, *signal->val_p, signal->deglitch_nsecs);
-
 	    /*
 	     * if the signal has been stable long enough, then we can report the new value.
 	     */
 	    if ((time_nsecs - signal->_last_buffered_change_nsecs) > signal->deglitch_nsecs) {
 		*signal->val_p = signal->_raw;
-
-		printf("REPORT CHANGE\n");
 	    }
 	}
 
