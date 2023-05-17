@@ -3,7 +3,7 @@
 #include <stdio.h>
 #include "parseSaleae_types.h"
 
-typedef struct {
+typedef struct log_file_s {
     FILE *fp;
     time_nsecs_t time_nsecs;
 } log_file_t;
