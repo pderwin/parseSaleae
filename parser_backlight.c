@@ -1,6 +1,7 @@
 #include <string.h>
 #include "hdr.h"
 #include "parseSaleae.h"
+#include "parser.h"
 
 #define MSB_FIRST 1
 
