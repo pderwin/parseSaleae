@@ -1,4 +1,5 @@
-Objs
+build
 *.lst
 *.log
+*.log.last
 parseSaleae
