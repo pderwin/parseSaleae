@@ -5,6 +5,7 @@
 #include <time.h>
 #include "csv.h"
 #include "parseSaleae.h"
+#include "parser.h"
 
 /*
  * parser may set this to get filtering capability.
@@ -33,6 +34,8 @@ void
     time_nsecs_t
 	next_frame_time;
 
+    memset(&frame, 0, sizeof(frame_t));
+
     /*
      * Process the header off of the file.
      */
@@ -45,9 +48,13 @@ void
      */
     parser_connect();
 
-    if (sample_time_nsecs) {
-	printf("CSV sample time: %d\n", sample_time_nsecs);
-    }
+    /*
+     * after connections made, call post_connects.  Allows a parser to redirect
+     * the output from one parser to another ( LR1110 grabbing UART output )
+     */
+    parser_post_connect();
+
+    printf("CSV sample time: %d\n", sample_time_nsecs);
 
     /*
      * Read the first frame and process it.  Fills in values in 'next_frame'.
