@@ -42,7 +42,6 @@ void hdr_with_lineno (log_file_t *lf, time_nsecs_t time_nsecs, char *h, unsigned
       last_time_nsecs = time_nsecs;
    }
 
-   fprintf(fp, "\n");
    print_time_nsecs(fp, time_nsecs);
    fprintf(fp, "| ");
 
