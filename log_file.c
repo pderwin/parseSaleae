@@ -27,6 +27,11 @@ log_file_t *log_file_create (char *filename)
 	exit(1);
     }
 
+    /*
+     * make non-buffered
+     */
+    setbuf(fp, NULL);
+
     fprintf(fp, "Log: %s\n", filename);
 
    /*
