@@ -17,41 +17,9 @@
 #define rising_edge(__elem)  (sample.__elem == 1) && (last_sample.__elem == 0)
 
 
-typedef struct frame_s {
-
-   time_nsecs_t
-      time_nsecs;
-
-   unsigned int sample;
-
-} frame_t;
-
 typedef struct parser_s parser_t;
 
-typedef struct signal_s {
-    char     *name;
-    uint32_t *val_p;
-    uint32_t format; // format to use when calling csv_find.
-    uint32_t find_rc;
-} signal_t;
 
-struct parser_s {
-    char *name;
-
-    uint32_t (*connect)      (void);
-    void (*process_frame)(frame_t *frame);
-
-    uint32_t enable;
-
-    signal_t *signals;
-
-    char       *log_file;
-    log_file_t *lf;
-
-    uint32_t sample_time_nsecs;
-
-    parser_t *next;
-};
 
 typedef enum
     {
@@ -62,7 +30,6 @@ typedef enum
 void addr2line              (unsigned int address);
 void addr2line_init         (char *elf_file);
 void bootloader_i2c         (uint32_t byte, uint32_t is_start, time_nsecs_t time_nsecs, uint32_t event_count);
-void clock_check            (frame_t *jf);
 void csv_process_file       (FILE *fp);
 void csv_sample_time_nsecs  (uint32_t nsecs);
 void hex_process_file       (FILE *fp);
@@ -80,11 +47,7 @@ void packet_process         (unsigned int idx, time_nsecs_t time_nsecs,
 void panel_i2c              (uint32_t byte, time_nsecs_t time_nsecs, uint32_t is_start);
 void panel_spi_cmd          (uint32_t byte);
 void panel_spi_data         (uint32_t byte);
-void parser_connect         (void);
-void parser_process_frame   (frame_t *frame);
-void parser_register        (parser_t *parser);
 void print_time_nsecs       (FILE *fp, time_nsecs_t time_nsecs);
-void rts_process            (frame_t *frame);
 
 void st25dv_connect         (void);
 void st25dv_i2c             (uint32_t byte, time_nsecs_t time_nsecs);
