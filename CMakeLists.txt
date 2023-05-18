@@ -2,6 +2,7 @@ cmake_minimum_required(VERSION 3.22)
 
 project(parseSaleae)
 
+add_compile_options(-Wall -Werror -Wextra -Wno-missing-field-initializers)
 
 add_executable(parseSaleae
 	addr2line.c
