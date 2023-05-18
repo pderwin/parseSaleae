@@ -209,6 +209,8 @@ static void process_rfaxss(uint8_t which, uint8_t rfass)
 	 "RO"
 	};
 
+    (void) which;
+
     fprintf(lf->fp, "PWD: %s, ", pwd_ctrl_strs      [(rfass >> 0) & 3]);
     fprintf(lf->fp, "RW: %s",  rw_protection_strs [(rfass >> 2) & 3]);
 }
