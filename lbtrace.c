@@ -300,7 +300,7 @@ static void parse_packet (void)
 	printf("Unparsed tag %x ", tag);
 
 	tag -= TAG_ZERO;
-	if (tag >= 0 && tag < tag_strs_count) {
+	if (tag < tag_strs_count) {
 	    printf("Appears to be: '%s'\n", tag_strs[tag]);
 	}
 	printf("\n");

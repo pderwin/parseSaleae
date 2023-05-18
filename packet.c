@@ -158,6 +158,10 @@ void
    __argv      = argv;
 
 
+   (void) idx;
+   (void) lineno;
+   (void) time_nsecs;
+
 #ifdef DEBUG
    printf("%10lld: ", time_nsecs);
    printf("TAG: %x LINENO: %x (%d) ARGC: %d ", tag, lineno, lineno, argc);

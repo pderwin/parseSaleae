@@ -4,6 +4,7 @@
 #include <trace.h>  // tag enumeration from Zephyr sources.
 #include "hdr.h"
 #include "parseSaleae.h"
+#include "parser.h"
 
 static uint32_t      packet_buffer[256];
 static uint32_t      next_index;
