@@ -187,8 +187,10 @@ static void parse_packet_buffer (void)
  * output:
  *
  *-------------------------------------------------------------------------*/
-static void process_frame (frame_t *frame)
+static void process_frame (parser_t *parser, frame_t *frame)
 {
+    (void) parser;
+
     /*
      * Clear the accumulator at the start of a packet
      */
