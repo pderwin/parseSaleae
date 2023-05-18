@@ -4,6 +4,7 @@
 #include <trace.h>  // tag enumeration from Zephyr sources.
 #include "hdr.h"
 #include "parseSaleae.h"
+#include "parser.h"
 
 typedef struct {
     uint32_t lbt_clk;
@@ -41,8 +42,10 @@ static parser_t my_parser;
  * output:
  *
  *-------------------------------------------------------------------------*/
-static void process_frame (frame_t *frame)
+static void process_frame (parser_t *parser, frame_t *frame)
 {
+    (void) parser;
+
     /*
      * Clear the accumulator at the start of a packet
      */
