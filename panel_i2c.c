@@ -1,4 +1,5 @@
 #include <stdlib.h>
+#include "frame.h"
 #include "hdr.h"
 #include "panel_commands.h"
 #include "panel_i2c.h"
