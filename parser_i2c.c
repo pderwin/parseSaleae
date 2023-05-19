@@ -1,7 +1,9 @@
 #include <string.h>
+#include "frame.h"
 #include "hdr.h"
 #include "panel_i2c.h"
 #include "parseSaleae.h"
+#include "parser.h"
 
 // #define VERBOSE 1
 
@@ -322,8 +324,10 @@ static void event(event_e event, time_nsecs_t time_nsecs)
 
 }
 
-static void process_frame (frame_t *frame)
+static void process_frame (parser_t *parser, frame_t *frame)
 {
+    (void) parser;
+
     {
 	static uint32_t current_i2c_clk = 0;
 	static uint32_t countdown       = 0;

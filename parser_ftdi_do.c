@@ -3,6 +3,7 @@
 #include <string.h>
 #include "hdr.h"
 #include "parseSaleae.h"
+#include "parser.h"
 
 typedef struct {
     uint32_t clk;
@@ -29,12 +30,15 @@ static FILE *verify_fp;
  * output:
  *
  *-------------------------------------------------------------------------*/
-static void process_frame (frame_t *frame)
+static void process_frame (parser_t *parser, frame_t *frame)
 {
     uint8_t  exp;
     uint32_t data;
     static uint32_t
 	offset     = 0;
+
+    (void) parser;
+    (void) frame;
 
     /*
      * If dbg_packet is on, and we see a rising edge of clock, then sample the

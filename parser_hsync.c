@@ -1,6 +1,8 @@
 #include <string.h>
+#include "frame.h"
 #include "hdr.h"
 #include "parseSaleae.h"
+#include "parser.h"
 
 #define MSB_FIRST 1
 
@@ -23,8 +25,9 @@ static parser_t my_parser;
  * output:
  *
  *-------------------------------------------------------------------------*/
-static void process_frame (frame_t *frame)
+static void process_frame (parser_t *parser, frame_t *frame)
 {
+    (void) parser;
 
     /*
      * If we've started a new packet, then clear accumulation.
