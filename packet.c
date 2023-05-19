@@ -4,7 +4,7 @@
 #include <trace.h>
 #include "hdr.h"
 #include "parseSaleae.h"
-
+#include "tag.h"
 
 // #define DEBUG 1
 

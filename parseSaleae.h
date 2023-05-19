@@ -49,16 +49,6 @@ void panel_spi_cmd          (uint32_t byte);
 void panel_spi_data         (uint32_t byte);
 void print_time_nsecs       (FILE *fp, time_nsecs_t time_nsecs);
 
-void st25dv_connect         (void);
-void st25dv_i2c             (uint32_t byte, time_nsecs_t time_nsecs);
-void st25dv_start           (void);
-void st25dv_stop            (void);
-
-void     tag_find              (unsigned int tag);
-void     tag_dump              (void);
-void     tag_init              (void);
-uint32_t tag_scan              (uint32_t max_str_count, char *tag_strs[]);
-
 unsigned int verbose;
 
 #endif /* parseJtag_h */

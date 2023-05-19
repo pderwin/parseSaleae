@@ -2,6 +2,7 @@
 #include "hdr.h"
 #include "parseSaleae.h"
 #include "parser.h"
+#include "tag.h"
 #include "trace.h"
 
 typedef struct {

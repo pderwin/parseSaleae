@@ -4,6 +4,7 @@
 #include <trace.h>  // tag enumeration from Zephyr sources.
 #include "hdr.h"
 #include "parseSaleae.h"
+#include "tag.h"
 
 static void packet_dump (void);
 

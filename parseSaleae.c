@@ -5,6 +5,7 @@
 #include "csv.h"
 #include "frame.h"
 #include "parseSaleae.h"
+#include "tag.h"
 
 static void
    process_input_file (char *inputFileName, unsigned int use_hex);
@@ -58,8 +59,8 @@ int
 	       break;
 
 	    case 't':
-	       atexit(tag_dump);
-	       break;
+		tag_atexit();
+		break;
 
 	    case 'x':
 	       printf("Read HEX formatted file\n");
