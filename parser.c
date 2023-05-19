@@ -1,7 +1,10 @@
 #include <stdlib.h>
 #include <string.h>
+#include "frame.h"
 #include "log_file.h"
 #include "parseSaleae.h"
+#include "parser.h"
+#include "signal.h"
 
 static parser_t
     *first_parser,
@@ -22,6 +25,8 @@ static void parser_connect_signals (parser_t *parser);
  *-------------------------------------------------------------------------*/
 void parser_connect (void)
 {
+    uint32_t
+	enabled_parser_count = 0;
     parser_t
 	*parser;
 
@@ -55,6 +60,87 @@ void parser_connect (void)
 	    if (parser->sample_time_nsecs) {
 		csv_sample_time_nsecs(parser->sample_time_nsecs);
 	    }
+
+	    enabled_parser_count++;
+	}
+
+	parser = parser->next;
+    }
+
+
+    /*
+     * Verify at least one parser is enabled.
+     */
+    if (enabled_parser_count == 0) {
+	fprintf(stderr, "ERROR: No parsers enabled\n");
+	exit(1);
+    }
+
+}
+
+/*-------------------------------------------------------------------------
+ *
+ * name:        parser_redirect_output
+ *
+ * description:
+ *
+ * input:
+ *
+ * output:
+ *
+ *-------------------------------------------------------------------------*/
+void parser_redirect_output(char *parser_name, log_file_t *lf)
+{
+    parser_t
+	*parser;
+
+    parser = first_parser;
+
+    while(parser) {
+
+	/*
+	 * If we're still enabled, then maybe call the connect callback
+	 */
+	if (parser->enable && !strcmp(parser->name, parser_name)) {
+	    printf("GOT IT!\n");
+
+	    fprintf(parser->lf->fp, "Output being redirected\n");
+	    parser->lf = lf;
+
+	    return;
+	}
+
+	parser = parser->next;
+    }
+
+    printf("INFO: Redirect of parser: '%s' failed\n", parser_name);
+}
+
+/*-------------------------------------------------------------------------
+ *
+ * name:        parser_post_connect
+ *
+ * description: allow all parsers to connect to their frame elements.
+ *
+ * input:
+ *
+ * output:
+ *
+ *-------------------------------------------------------------------------*/
+void parser_post_connect (void)
+{
+    parser_t
+	*parser;
+
+    parser = first_parser;
+
+    while(parser) {
+
+	/*
+	 * If we're still enabled, then maybe call the connect callback
+	 */
+	if (parser->enable && parser->post_connect) {
+	    parser->post_connect();
 	}
 
 	parser = parser->next;
@@ -83,9 +169,13 @@ static void parser_connect_signals (parser_t *parser)
 
     while(signal->name) {
 
-	signal->find_rc = csv_find_format(signal->name, signal->val_p, signal->format);
+	/*
+	 * always deposit the signal value into the _raw element.  We will deglitch
+	 * this data and place into the val_p in signal_deglitch().
+	 */
+	signal->_find_rc = csv_find_format(signal->name, &signal->_raw, signal->format);
 
-	signal_find_rc |= signal->find_rc;
+	signal_find_rc |= signal->_find_rc;
 
 	signal++;
     }
@@ -124,7 +214,7 @@ void parser_dump (void)
 	    signal = parser->signals;
 
 	    while(signal->name) {
-		if (signal->find_rc) {
+		if (signal->_find_rc) {
 		    printf("%s ", signal->name);
 		}
 
@@ -176,18 +266,24 @@ void parser_register (parser_t *parser)
  *-------------------------------------------------------------------------*/
 void parser_process_frame (frame_t *frame)
 {
-   parser_t
-      *parser;
+    parser_t
+	*parser;
 
-   parser = first_parser;
+    parser = first_parser;
 
-   while(parser) {
-      if (parser->enable) {
-	 parser->process_frame(frame);
-      }
+    while(parser) {
+	if (parser->enable) {
 
-      parser = parser->next;
-   }
+	    /*
+	     * Need to process the signals, possibly de-glitching them.
+	     */
+	    signal_deglitch(parser, frame->time_nsecs);
+
+	    parser->process_frame(parser, frame);
+	}
+
+	parser = parser->next;
+    }
 
 }
 
