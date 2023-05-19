@@ -9,7 +9,7 @@ struct parser_s {
 
     uint32_t (*connect)      (void);
     void     (*post_connect) (void);
-    void     (*process_frame)(frame_t *frame);
+    void     (*process_frame)(parser_t *parser, frame_t *frame);
 
     uint32_t enable;
 
@@ -19,6 +19,8 @@ struct parser_s {
     log_file_t *lf;
 
     uint32_t sample_time_nsecs;
+
+    void       *data;
 
     parser_t *next;
 };
