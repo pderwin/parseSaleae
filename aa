@@ -22,5 +22,6 @@ if [ ! -r parseSaleae ] ; then
 fi
 
 make --quiet digital.lst
+# make --quiet csv_filename=semtech digital.lst
 
 date
