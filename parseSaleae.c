@@ -3,6 +3,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include "csv.h"
+#include "frame.h"
 #include "parseSaleae.h"
 
 static void
@@ -99,35 +100,6 @@ int
    exit(0);
 }
 
-#if 0
-static void
-   findLbtrace(unsigned int idx, lbtrace_t *lbtrace)
-{
-   char
-      name[128];
-   unsigned int
-      j = idx+1;
-
-   /*
-    * Use naming converntion of XXX_J1 and XXX_J2 for index 0 and 1.
-    */
-   sprintf(name, "d0_j%d", j);
-   csv_find(name, &lbtrace->data0);
-
-   sprintf(name, "d1_j%d", j);
-   csv_find(name, &lbtrace->data1);
-
-   sprintf(name, "clk_j%d", j);
-   csv_find(name, &lbtrace->clk);
-
-   sprintf(name, "trigger_j%d", j);
-   csv_find(name, &lbtrace->trigger);
-
-   sprintf(name, "misc_j%d", j);
-   csv_find(name, &lbtrace->misc);
-}
-#endif
-
 /**
  ****************************************************************************************************
  *
@@ -139,7 +111,7 @@ static void
  *
  *****************************************************************************************************/
 static void
-   process_input_file (char *inputFileName, unsigned int use_hex)
+   process_input_file (char *input_filename, unsigned int use_hex)
 {
    FILE
       *fp;
@@ -150,12 +122,12 @@ static void
    memset(&current_frame, 0, sizeof(current_frame));
    memset(&next_frame,    0, sizeof(next_frame));
 
-   if ((fp = fopen(inputFileName, "rb")) == NULL) {
-      printf("Error opening input file: %s\n",
-	     inputFileName);
+   if ((fp = fopen(input_filename, "rb")) == NULL) {
+      printf("Error opening input file: %s\n", input_filename);
       exit(1);
    }
 
+   fprintf(stderr, "parseSaleae: processing: '%s'\n", input_filename);
    if (use_hex) {
       hex_process_file(fp);
    }
