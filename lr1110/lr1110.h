@@ -3,10 +3,18 @@
 #define PENDING (0x80000000)
 
 enum {
-      GET_STATUS                  = 0x0100,
-      GET_VERSION                 = 0x0101,
-      WRITE_BUFFER_8              = 0x0109,
-      READ_BUFFER_8               = 0x010a,
+      LR1110_GROUP_SYSTEM = 1,
+      LR1110_GROUP_RADIO  = 2,
+      LR1110_GROUP_GNSS   = 4,
+      LR1110_GROUP_CRYPTO = 5,
+};
+
+enum {
+      SYS_GET_STATUS              = 0x0100,
+      SYS_GET_VERSION             = 0x0101,
+      SYS_UNKNOWN_0108            = 0x0108,
+      SYS_WRITE_BUFFER_8          = 0x0109,
+      SYS_READ_BUFFER_8           = 0x010a,
       WRITE_REG_MEM_MASK32        = 0x010c,
       GET_ERRORS                  = 0x010d,
       CLEAR_ERRORS                = 0x010e,
@@ -26,7 +34,7 @@ enum {
       GET_JOIN_EUI                = 0x0126,
       READ_DEVICE_PIN             = 0x0127,
 
-      GET_STATS                   = 0x0201,
+      RADIO_GET_STATS             = 0x0201,
       GET_PACKET_TYPE             = 0x0202,
       GET_RX_BUFFER_STATUS        = 0x0203,
       GET_PACKET_STATUS           = 0x0204,
@@ -47,13 +55,21 @@ enum {
       SEMTECH_UNKNOWN_022b        = 0x022b,
 
       GNSS_SET_CONSTELLATION      = 0x0400,
+      GNSS_SET_MODE               = 0x0408,
       GNSS_SCAN_AUTONOMOUS        = 0x0409,
+      GNSS_SCAN_ASSISTED          = 0x040a,
       GNSS_GET_RESULT_SIZE        = 0x040c,
       GNSS_READ_RESULTS           = 0x040d,
+      GNSS_ALMANAC_FULL_UPDATE    = 0x040e,
+      GNSS_UNKNOWN_040F           = 0x040f,
+      GNSS_GET_CONTEXT_STATUS     = 0x0416,
+
       // not documented this way      GNSS_SCAN_AUTONOMOUS        = 0x0430,
 
       CRYPTO_SET_KEY              = 0x0502,
       CRYPTO_DERIVE_AND_STORE_KEY = 0x0503,
+      CRYPTO_PROCESS_JOIN_ACCEPT  = 0x0504,
+
       CRYPTO_COMPUTE_AES_CMAC     = 0x0505,
       CRYPTO_STORE_TO_FLASH       = 0x050a,
       CRYPTO_RESTORE_FROM_FLASH   = 0x050b,
