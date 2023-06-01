@@ -1,3 +1,5 @@
 #pragma once
 
-void lr1110_gnss (void);
+#include "parser.h"
+
+void lr1110_gnss (parser_t *parser);

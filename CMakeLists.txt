@@ -19,6 +19,7 @@ add_executable(parseSaleae
 	lr1110/radio.c
 	lr1110/system.c
 	lr1110/parser.c
+	lr1110/wifi.c
 	packet.c
 	panel_i2c.c
 	panel_spi.c

@@ -84,7 +84,7 @@ static void parse_packet (void)
     lineno = (lineno_tag >> 16) & 0xffff;
     tag    = (lineno_tag >>  0) & 0xffff;
 
-    hdr_with_lineno(stdout_lf, packet_buffer_start_time, "PARSER_LBTRACE", lineno);
+    hdr_with_lineno(stdout_lf, packet_buffer_start_time, "", "PARSER_LBTRACE", lineno);
 
     {
 	char

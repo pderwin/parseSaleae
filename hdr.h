@@ -4,4 +4,4 @@
 #include "parseSaleae_types.h"
 
 void hdr                   (log_file_t *lf, time_nsecs_t time_nsecs, char *h);
-void hdr_with_lineno       (log_file_t *lf, time_nsecs_t time_nsecs, char *h, unsigned int lineno);
+void hdr_with_lineno       (log_file_t *lf, time_nsecs_t time_nsecs, char *group_str, char *h, unsigned int lineno);

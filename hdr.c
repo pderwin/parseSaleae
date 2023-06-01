@@ -17,7 +17,7 @@
  *****************************************************************************************************/
 void hdr(log_file_t *lf, time_nsecs_t time_nsecs, char *h)
 {
-    hdr_with_lineno(lf, time_nsecs, h, 0);
+    hdr_with_lineno(lf, time_nsecs, "", h, 0);
 }
 
 /**
@@ -30,7 +30,7 @@ void hdr(log_file_t *lf, time_nsecs_t time_nsecs, char *h)
  * \returns
  *
  *****************************************************************************************************/
-void hdr_with_lineno (log_file_t *lf, time_nsecs_t time_nsecs, char *h, unsigned int lineno)
+void hdr_with_lineno (log_file_t *lf, time_nsecs_t time_nsecs, char *group_str, char *h, unsigned int lineno)
 {
     FILE *fp = lf->fp;
     time_nsecs_t last_time_nsecs = lf->time_nsecs;
@@ -53,7 +53,7 @@ void hdr_with_lineno (log_file_t *lf, time_nsecs_t time_nsecs, char *h, unsigned
     */
    lf->time_nsecs = time_nsecs;
 
-   fprintf(fp, "%-25.25s | ", h);
+   fprintf(fp, "%-6.6s | %-25.25s | ", group_str, h);
 
    if (lineno) {
        fprintf(fp, "%4d", lineno);

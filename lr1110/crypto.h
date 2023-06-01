@@ -1,3 +1,5 @@
 #pragma once
 
-void lr1110_crypto (void);
+#include "parser.h"
+
+void lr1110_crypto (parser_t *parser);

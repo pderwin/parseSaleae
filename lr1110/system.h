@@ -1,3 +1,5 @@
 #pragma once
 
-void lr1110_system (void);
+#include "parser.h"
+
+void lr1110_system (parser_t *parser);

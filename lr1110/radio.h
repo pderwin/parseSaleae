@@ -1,3 +1,5 @@
 #pragma once
 
-void lr1110_radio (void);
+#include "parser.h"
+
+void lr1110_radio (parser_t *parser);

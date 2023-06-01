@@ -8,6 +8,8 @@
 #include "lr1110/gnss.h"
 #include "lr1110/radio.h"
 #include "lr1110/system.h"
+#include "lr1110/wifi.h"
+
 // #define VERBOSE 1
 
 /*
@@ -20,29 +22,6 @@
  */
 #define DEGLITCH_TIME (5 * SAMPLE_TIME_NSECS)
 
-typedef struct {
-    uint32_t nss;
-    uint32_t clk;
-    uint32_t mosi;
-    uint32_t miso;
-    uint32_t busy;
-    uint32_t irq;
-} sample_t;
-
-
-typedef struct lr1110_data_s {
-    sample_t last_sample;
-    sample_t sample;
-
-    uint32_t accumulated_bits;
-    uint32_t accumulated_miso_byte;
-    uint32_t accumulated_mosi_byte;
-
-    uint32_t accumulated_count;
-
-} lr1110_data_t;
-
-
 static lr1110_data_t
     lr1110_semtech_data,
     lr1110_n1_data;
@@ -54,14 +33,7 @@ static lr1110_data_t
 
 
 static uint32_t     packet_count = 0;
-static time_nsecs_t packet_start_time;
 
-#define NUMBER_BYTES (256)
-
-static uint8_t  mosi[NUMBER_BYTES];
-static uint8_t  miso[NUMBER_BYTES];
-
-static void almanac_update(FILE *fp, uint8_t *cp);
 static void parse_packet (parser_t *parser);
 
 static void clear_accumulator (lr1110_data_t *data)
@@ -74,12 +46,12 @@ static void clear_accumulator (lr1110_data_t *data)
 
 static void clear_packet (lr1110_data_t *data)
 {
-    data->accumulated_count = 0;
+    data->count = 0;
 
     clear_accumulator(data);
 }
 
-static void hex_dump(FILE *log_fp, uint8_t *cp, uint32_t count)
+void hex_dump(FILE *log_fp, uint8_t *cp, uint32_t count)
 {
     uint32_t i;
 
@@ -99,7 +71,7 @@ static void process_frame (parser_t *parser, frame_t *frame)
      */
     if (falling_edge(nss)) {
 
-	packet_start_time = frame->time_nsecs;
+	data->packet_start_time = frame->time_nsecs;
 
 	clear_packet(data);
 
@@ -153,13 +125,15 @@ static void process_frame (parser_t *parser, frame_t *frame)
 
 	    if (data->accumulated_bits == 8) {
 #ifdef VERBOSE
-		fprintf(my_parser.lf->fp, ">>>>  LR1110 byte: %02x %02x \n", accumulated_mosi_byte, accumulated_miso_byte);
+		fprintf(parser->lf->fp, ">>>>  LR1110 byte: %02x %02x \n",
+			data->accumulated_mosi_byte,
+			data->accumulated_miso_byte);
 #endif
 
-		miso[data->accumulated_count] = data->accumulated_miso_byte;
-		mosi[data->accumulated_count] = data->accumulated_mosi_byte;
+		data->miso[data->count] = data->accumulated_miso_byte;
+		data->mosi[data->count] = data->accumulated_mosi_byte;
 
-		data->accumulated_count++;
+		data->count++;
 
 		clear_accumulator(data);
 	    }
@@ -169,17 +143,15 @@ static void process_frame (parser_t *parser, frame_t *frame)
     memcpy(&data->last_sample, &data->sample, sizeof(sample_t));
 }
 
-#define checkPacketSize(__str, __size) _checkPacketSize(parser, __str, __size, cmd)
-
-static void _checkPacketSize(parser_t *parser, char *str, uint32_t size, uint32_t cmd)
+void _checkPacketSize(parser_t *parser, char *group_str, char *str, uint32_t size, uint32_t cmd)
 {
     lr1110_data_t *data = parser->data;
 
-    hdr_with_lineno(parser->lf, packet_start_time, str, packet_count);
+    hdr_with_lineno(parser->lf, data->packet_start_time, group_str, str, packet_count);
 
     if (size) {
-	if (data->accumulated_count != size) {
-	    fprintf(parser->lf->fp, "<Length error.  Expected: %d bytes, got: %d > ", size, data->accumulated_count);
+	if (data->count != size) {
+	    fprintf(parser->lf->fp, "<Length error.  Expected: %d bytes, got: %d > ", size, data->count);
 	    exit(1);
 	}
     }
@@ -187,22 +159,27 @@ static void _checkPacketSize(parser_t *parser, char *str, uint32_t size, uint32_
     fprintf(parser->lf->fp, "%04x | ", cmd & 0xffff);
 }
 
-static uint32_t pending_cmd;
-
-
-#define clear_pending_cmd(__cmd) _clear_pending_cmd(log_fp, __cmd)
-
-static void _clear_pending_cmd(FILE *log_fp, uint32_t cmd)
+void _clear_pending_cmd(parser_t *parser, uint32_t group, uint32_t cmd)
 {
-    if (!pending_cmd) {
+    lr1110_data_t *data = parser->data;
+
+    (void) group;
+
+    if (! data->pending_cmd) {
+
+	FILE *log_fp;
+
+	log_fp = parser->lf->fp;
+
 	fprintf(log_fp, "<Clear Pending Command Error.  cmd: %x > ", cmd);
 	exit(1);
     }
 
-    pending_cmd = 0;
+    data->pending_cmd   = 0;
+    data->pending_group = 0;
 }
 
-static uint32_t get_16(uint8_t *mosi)
+uint32_t get_16(uint8_t *mosi)
 {
     uint32_t val;
 
@@ -211,7 +188,7 @@ static uint32_t get_16(uint8_t *mosi)
     return val;
 }
 
-static uint32_t get_24(uint8_t *mosi)
+uint32_t get_24(uint8_t *mosi)
 {
     uint32_t val;
 
@@ -220,7 +197,7 @@ static uint32_t get_24(uint8_t *mosi)
     return val;
 }
 
-static uint32_t get_32(uint8_t *mosi)
+uint32_t get_32(uint8_t *mosi)
 {
     uint32_t val;
 
@@ -229,62 +206,26 @@ static uint32_t get_32(uint8_t *mosi)
     return val;
 }
 
-#define set_pending_cmd(__cmd) _set_pending_cmd(log_fp, __cmd)
-
-static void _set_pending_cmd(FILE *log_fp, uint32_t cmd)
+void _set_pending_cmd(parser_t *parser, uint32_t group, uint32_t cmd)
 {
-    if (pending_cmd) {
-	fprintf(log_fp, "<Pending Command Error.  pending: %x cmd: %x > ", pending_cmd, cmd);
+    lr1110_data_t *data = parser->data;
+
+    if (data->pending_cmd) {
+
+	FILE *log_fp = parser->lf->fp;
+
+	fprintf(log_fp, "<Pending Command Error.  pending: %x cmd: %x > ", data->pending_cmd, cmd);
 	exit(1);
     }
 
-    pending_cmd = (cmd | PENDING);
+    data->pending_group = group;
+    data->pending_cmd   = (cmd | PENDING);
 }
 
-static void parse_irq(FILE *log_fp, uint8_t *miso)
+void _parse_stat1(parser_t *parser, uint8_t stat1)
 {
-    uint32_t bit_num;
-    uint32_t irq;
+    FILE *log_fp = parser->lf->fp;
 
-    irq = (miso[0] << 24) | (miso[1] << 16) | (miso[2] << 8) | miso[3];
-
-    fprintf(log_fp, "irq: %08x (", irq);
-
-#define DO_BIT(mask) \
-    if (irq & mask) {		       \
-	fprintf(log_fp, "%s ", # mask);		\
-	irq &= ~mask;				\
-    }
-
-    DO_BIT(IRQ_CMD_ERROR);
-    DO_BIT(IRQ_ERROR);
-    DO_BIT(IRQ_TIMEOUT);
-    DO_BIT(IRQ_TX_DONE);
-    DO_BIT(IRQ_RX_DONE);
-    DO_BIT(IRQ_PREAMBLE_DETECTED);
-    DO_BIT(IRQ_SYNCWORD_VALID);
-    DO_BIT(IRQ_GNSS_DONE);
-    DO_BIT(IRQ_HEADER_ERR);
-    DO_BIT(IRQ_ERR);
-    DO_BIT(IRQ_CAD_DONE);
-
-    fprintf(log_fp, ") ");
-
-    if (irq) {
-	fprintf(log_fp, "\n\nERROR: unparsed irq: %08x.  ", irq);
-
-	for (bit_num = 0; bit_num < 32; bit_num++) {
-	    if (irq & (1 << bit_num)) {
-		fprintf(log_fp, "bit number: %d \n", bit_num);
-		exit(1);
-	    }
-
-	}
-    }
-}
-
-static void parse_stat1(FILE *log_fp, uint8_t stat1)
-{
     char *cmd_str[] = {
 		       "CMD_FAIL",
 		       "CMD_PERR",
@@ -308,9 +249,7 @@ static void parse_stat1(FILE *log_fp, uint8_t stat1)
 
 }
 
-#define parse_stat2(__stat2) _parse_stat2(log_fp, __stat2)
-
-static void _parse_stat2(FILE *log_fp, uint8_t stat2)
+void _parse_stat2(parser_t *parser, uint8_t stat2)
 {
     char     *reset_status_str = "???";
     uint32_t reset_status;
@@ -325,6 +264,7 @@ static void _parse_stat2(FILE *log_fp, uint8_t stat2)
 				    "WiFi or GNSS",     // 6
 				    "???"               // 7
     };
+    FILE *log_fp = parser->lf->fp;
 
     fprintf(log_fp, "stat2: %02x ", stat2);
 
@@ -370,631 +310,60 @@ static void _parse_stat2(FILE *log_fp, uint8_t stat2)
  *-------------------------------------------------------------------------*/
 static void parse_packet (parser_t *parser)
 {
-    uint32_t cmd_group;
-    uint32_t cmd;
-    uint32_t delay;
-    uint32_t errors;
-    uint32_t freq;
-    uint32_t i;
-    //    uint32_t irq;
-    uint32_t timeout;
-    static uint32_t payload_length  = 0;
-    static packet_type_e packet_type = PACKET_TYPE_NONE;
+    uint32_t group;
     FILE *log_fp;
     lr1110_data_t *data = parser->data;
 
     log_fp = parser->lf->fp;
 
-    if (data->accumulated_count < 2) {
+    if (data->count < 2) {
 	return;
     }
 
-    if (pending_cmd) {
-	cmd = pending_cmd;
+    if (data->pending_group) {
+	group = data->pending_group;
     }
     else {
-	cmd = (mosi[0] << 8) | mosi[1];
+	group = data->mosi[0];
     }
 
     packet_count++;
 
-    cmd_group = mosi[0];
+    switch(group) {
 
-    switch(cmd_group) {
+    case LR1110_GROUP_ZERO:
+	{
+	    uint32_t cmd = 0;
+#define MY_GROUP_STR "ZERO"
+	    checkPacketSize("---- 00's ----", 0);
+	}
+	break;
 
     case LR1110_GROUP_CRYPTO:
-	lr1110_crypto();
+	lr1110_crypto(parser);
 	break;
     case LR1110_GROUP_GNSS:
-	lr1110_gnss();
+	lr1110_gnss(parser);
 	break;
 
     case LR1110_GROUP_RADIO:
-	lr1110_radio();
+	lr1110_radio(parser);
 	break;
 
     case LR1110_GROUP_SYSTEM:
-	lr1110_system();
+	lr1110_system(parser);
+	break;
+
+    case LR1110_GROUP_WIFI:
+	lr1110_wifi(parser);
 	break;
 
     default:
-	fprintf(log_fp, "unknown command group: %x \n", cmd_group);
-	exit(1);
-
-
-    case 0:
-	checkPacketSize("---- 00's ----", 0);
-	break;
-
-    case CALIBRATE:
-	checkPacketSize("CALIBRATE", 3);
-
-	fprintf(parser->lf->fp, "params: %08x", mosi[2]);
-	break;
-
-    case CLEAR_ERRORS:
-	checkPacketSize("CLEAR_ERRORS", 2);
-	break;
-
-    case CLEAR_IRQ:
-	checkPacketSize("CLEAR_IRQ", 6);
-
-	parse_irq(log_fp, &mosi[2]);
-
-	break;
-
-    case CONFIG_LF_CLOCK:
-	checkPacketSize("CONFIG_LF_CLOCK", 3);
-
-	fprintf(log_fp, "wait xtal ready: %d clock: %d ", (mosi[2] >> 2) & 1, mosi[2] & 3);
-	break;
-
-    case CRYPTO_COMPUTE_AES_CMAC:
-	checkPacketSize("CRYPTO_COMPUTE_AES_CMAC", 0);
-
-	fprintf(log_fp, "Bytes: \n");
-	for (i=0; i<13; i++) {
-	    fprintf(log_fp, "   %2d: %x \n", i, mosi[i]);
-	}
-	break;
-
-    case CRYPTO_DERIVE_AND_STORE_KEY:
-	checkPacketSize("CRYPTO_DERIVE_AND_STORE_KEY", 20);
-	break;
-
-    case CRYPTO_RESTORE_FROM_FLASH:
-	checkPacketSize("CRYPTO_RESTORE_FROM_FLASH", 2);
-	break;
-
-    case CRYPTO_SET_KEY:
-	checkPacketSize("CRYPTO_SET_KEY", 19);
-	break;
-    case (CRYPTO_SET_KEY | PENDING):
-	checkPacketSize("CRYPTO_SET_KEY", 19);
-
-	clear_pending_cmd(CRYPTO_SET_KEY);
-
-	break;
-
-    case CRYPTO_STORE_TO_FLASH:
-	checkPacketSize("CRYPTO_STORE_TO_FLASH", 2);
-	break;
-
-    case GET_DEV_EUI:
-	checkPacketSize("GET_DEV_EUI", 2);
-	set_pending_cmd(GET_DEV_EUI);
-	break;
-
-    case ( GET_DEV_EUI | PENDING ):
-	checkPacketSize("GET_DEV_EUI (resp)", 9);
-
-	parse_stat1(log_fp, miso[0]);
-
-	for (i=0; i<8; i++) {
-	    fprintf(log_fp, "%02x ", miso[i+1]);
-	}
-
-	clear_pending_cmd(GET_DEV_EUI);
-	break;
-
-    case GET_ERRORS:
-	checkPacketSize("GET_ERRORS", 2);
-	set_pending_cmd(GET_ERRORS);
-	break;
-
-    case (GET_ERRORS | PENDING):
-	checkPacketSize("GET_ERRORS (resp)", 3);
-
-	errors = (miso[1] << 8) | miso[2];
-	fprintf(log_fp, "stat1: %x errors: %x",  miso[0], errors);
-
-	clear_pending_cmd(GET_ERRORS);
-	break;
-
-    case GET_JOIN_EUI:
-	checkPacketSize("GET_JOIN_EUI", 2);
-	set_pending_cmd(GET_JOIN_EUI);
-	break;
-
-    case ( GET_JOIN_EUI | PENDING ):
-	checkPacketSize("GET_JOIN_EUI (resp)", 9);
-
-	parse_stat1(log_fp, miso[0]);
-
-	for (i=0; i<8; i++) {
-	    fprintf(log_fp, "%02x ", miso[i+1]);
-	}
-
-	clear_pending_cmd(GET_DEV_EUI);
-	break;
-
-    case GET_PACKET_STATUS:
-	checkPacketSize("GET_PACKET_STATUS", 2);
-	set_pending_cmd(GET_PACKET_STATUS);
-	break;
-
-    case (GET_PACKET_STATUS | PENDING):
-	checkPacketSize("GET_PACKET_STATUS (resp)", 4);
-
-	parse_stat1(log_fp, miso[0]);
-
-	fprintf(log_fp, "rssipkt: %x ",         miso[1]);
-	fprintf(log_fp, "snrpkt: %x ",          miso[2]);
-	fprintf(log_fp, "signal_rssi_pkt: %x", miso[3]);
-
-	clear_pending_cmd(GET_PACKET_TYPE);
-	break;
-
-    case GET_PACKET_TYPE:
-	checkPacketSize("GET_PACKET_TYPE", 2);
-	set_pending_cmd(GET_PACKET_TYPE);
-	break;
-
-    case (GET_PACKET_TYPE | PENDING):
-	checkPacketSize("GET_PACKET_TYPE (resp)", 2);
-
-	fprintf(log_fp, "type: %x", miso[1]);
-
-	clear_pending_cmd(GET_PACKET_TYPE);
-	break;
-
-    case GET_RANDOM:
-	checkPacketSize("GET_RANDOM", 2);
-	set_pending_cmd(GET_RANDOM);
-	break;
-
-    case (GET_RANDOM | PENDING):
-	checkPacketSize("GET_RANDOM (resp)", 4);
-
-	fprintf(log_fp, "random: %x", get_32(&miso[0]) );
-	clear_pending_cmd(GET_RANDOM);
-	break;
-
-    case GNSS_GET_RESULT_SIZE:
-	checkPacketSize("GNSS_GET_RESULT_SIZE", 2);
-	set_pending_cmd(GNSS_GET_RESULT_SIZE);
-	break;
-
-    case ( GNSS_GET_RESULT_SIZE | PENDING):
-	checkPacketSize("GNSS_GET_RESULT_SIZE (rsp)", 3);
-
-	parse_stat1(log_fp, miso[0]);
-
-	payload_length = get_16(&miso[1]);
-
-	fprintf(log_fp, "result_size: %d ", payload_length );
-
-	clear_pending_cmd(GNSS_GET_RESULT_SIZE);
-	break;
-
-    case GNSS_READ_RESULTS:
-	checkPacketSize("GNSS_READ_RESULTS", 2);
-	set_pending_cmd(GNSS_READ_RESULTS);
-	break;
-
-    case ( GNSS_READ_RESULTS | PENDING):
-	checkPacketSize("GNSS_READ_RESULTS (rsp)", payload_length + 1);
-
-	parse_stat1(log_fp, miso[0]);
-
-	for (i=0; i< payload_length + 1; i++) {
-	    fprintf(log_fp, "%02x ", miso[i] );
-	}
-
-	clear_pending_cmd(GNSS_READ_RESULTS);
-	break;
-
-    case GET_RX_BUFFER_STATUS:
-	checkPacketSize("GET_RX_BUFFER_STATUS", 2);
-	set_pending_cmd(GET_RX_BUFFER_STATUS);
-	break;
-
-    case ( GET_RX_BUFFER_STATUS | PENDING):
-	checkPacketSize("GET_RX_BUFFER_STATUS (resp)", 3);
-
-	parse_stat1(log_fp, miso[0]);
-
-	fprintf(log_fp, "payload length: %d ", miso[1] );
-	fprintf(log_fp, "RX buffer start: %x ", miso[2] );
-
-	clear_pending_cmd(GET_RX_BUFFER_STATUS);
-	break;
-
-    case GET_VBAT:
-	checkPacketSize("GET_VBAT", 2);
-	set_pending_cmd(GET_VBAT);
-	break;
-
-    case ( GET_VBAT | PENDING ):
-	{
-
-	    float vBat;
-
-	    checkPacketSize("GET_VBAT (resp)", 2);
-
-	    parse_stat1(log_fp, miso[0]);
-
-	    /*
-	     * Using equation from spec:
-	     */
-	    vBat = (miso[1] * 5.0) / 255;
-
-	    vBat -= 1;
-	    vBat *= 1.35;
-
-
-	    fprintf(log_fp, "vBat: %5.2f ", vBat);
-
-	    clear_pending_cmd(GET_VBAT);
-	}
-	break;
-
-    case GNSS_ALMANAC_FULL_UPDATE:
-	checkPacketSize("GNSS_ALMANAC_FULL_UPDATE", 22);
-	almanac_update(log_fp, &mosi[2]);
-	break;
-
-    case GNSS_GET_CONTEXT_STATUS:
-	checkPacketSize("GNSS_GET_CONTEXT_STATUS", 2);
-	break;
-
-    case GNSS_SET_CONSTELLATION:
-	checkPacketSize("GNSS_SET_CONSTELLATION", 3);
-
-	fprintf(log_fp, "to_use: %x ", mosi[2]);
-	break;
-
-
-    case GNSS_SCAN_AUTONOMOUS:
-	checkPacketSize("GNSS_SCAN_AUTONOMOUS", 9);
-
-	fprintf(log_fp, "time: %x ",        get_32(&mosi[2]));
-	fprintf(log_fp, "effort: %x ",      mosi[6]);
-	fprintf(log_fp, "result_mask: %x ", mosi[7]);
-	fprintf(log_fp, "nbsvmax: %x ",     mosi[8]);
-	break;
-
-    case GNSS_SET_MODE:
-	checkPacketSize("GNSS_SET_MODE", 3);
-
-	fprintf(log_fp, "Mode: %s", mosi[2] == 0 ? "Single" : "Double");
-	break;
-
-    case GNSS_UNKNOWN_040F:
-	checkPacketSize("GNSS_UNKNOWN_040F", 2);
-	break;
-
-   case LORA_SYNCH_TIMEOUT:
-	checkPacketSize("LORA_SYNCH_TIMEOUT", 3);
-	fprintf(log_fp, "symbol: %02x ( should be zero )", mosi[2]);
-	break;
-
-    case RADIO_GET_STATS:
-	checkPacketSize("RADIO_GET_STATS", 2);
-	set_pending_cmd(RADIO_GET_STATS);
-	break;
-
-    case (RADIO_GET_STATS | PENDING):
-	checkPacketSize("RADIO_GET_STATS (resp)", 9);
-
-	parse_stat1(log_fp, miso[0]);
-
-	fprintf(log_fp, "nbPackets: %d ", get_16(&miso[1]) );
-	fprintf(log_fp, "crc error: %d ", get_16(&miso[3]) );
-	fprintf(log_fp, "hdr error: %d ", get_16(&miso[5]) );
-	fprintf(log_fp, "false sync: %d", get_16(&miso[7]) );
-
-	clear_pending_cmd(RADIO_GET_STATS);
-	break;
-
-    case READ_DEVICE_PIN:
-	/*
-	 * The packet sent should be only 2 bytes, but 13 were sent by Semtech. Disable length
-	 * check for now.
-	 */
-	checkPacketSize("READ_DEVICE_PIN", 0);
-	set_pending_cmd(READ_DEVICE_PIN);
-	break;
-
-    case (READ_DEVICE_PIN | PENDING):
-	checkPacketSize("READ_DEVICE_PIN (resp)", 0);
-
-	parse_stat1(log_fp, miso[0]);
-	fprintf(log_fp, "pins: %08x", get_32(&mosi[1]));
-
-	clear_pending_cmd(READ_DEVICE_PIN);
-	break;
-
-    case REBOOT:
-	checkPacketSize("REBOOT", 3);
-	fprintf(log_fp, "stay in bootloader: %d", mosi[2]);
-	break;
-
-    case SEMTECH_UNKNOWN_0229:
-
-	checkPacketSize("SEMTECH_UNKNOWN_0229", 13);
-
-	fprintf(log_fp, "Bytes: ");
-
-	for (i=0; i<13; i++) {
-	    fprintf(log_fp, "%02x ", mosi[i]);
-	}
-
-	break;
-
-    case SEMTECH_UNKNOWN_022b:
-	checkPacketSize("SEMTECH_UNKNOWN_022b", 3);
-	fprintf(log_fp, "Bytes: \n");
-	for (i=0; i<3; i++) {
-	    fprintf(log_fp, "   %2d: %x \n", i, mosi[i]);
-	}
-
-	break;
-
-    case SET_DIO_AS_RF_SWITCH:
-	checkPacketSize("SET_DIO_AS_RF_SWITCH", 10);
-	fprintf(log_fp, "Enable: %02x, ",  mosi[2]);
-	fprintf(log_fp, "SbCfg: %02x, ",   mosi[3]);
-	fprintf(log_fp, "RxCfg: %02x, ",   mosi[4]);
-	fprintf(log_fp, "TxCfg: %02x, ",   mosi[5]);
-	fprintf(log_fp, "TxHpCfg: %02x, ", mosi[6]);
-	fprintf(log_fp, "GnssCfg: %02x, ", mosi[8]);
-	fprintf(log_fp, "WifiCfg: %02x", mosi[9]);
-	break;
-
-    case SET_DIO_IRQ_PARAMS:
-	checkPacketSize("SET_DIO_IRQ_PARAMS", 10);
-
-	fprintf(log_fp, "IRQ1: %02x%02x%02x%02x, ", mosi[2], mosi[3], mosi[4], mosi[5]);
-	fprintf(log_fp, "IRQ2: %02x%02x%02x%02x",   mosi[6], mosi[7], mosi[8], mosi[9]);
-	break;
-
-    case SET_LORA_PUBLIC_NETWORK:
-	checkPacketSize("SET_LORA_PUBLIC_NETWORK", 3);
-	fprintf(log_fp, "network: %02x", mosi[2]);
-	break;
-
-    case SET_MODULATION_PARAM:
-
-	checkPacketSize("SET_MODULATION_PARAM", 6);
-
-	fprintf(log_fp, "SF: %02x ", mosi[2]);
-	fprintf(log_fp, "BWL: %02x ", mosi[3]);
-	fprintf(log_fp, "CR: %02x ", mosi[4]);
-	fprintf(log_fp, "lowDROpt: %02x", mosi[5]);
-	break;
-
-    case SET_PA_CFG:
-	checkPacketSize("SET_PA_CFG", 6);
-
-	fprintf(log_fp, "PaSel: %02x, ",  mosi[2]);
-	fprintf(log_fp, "RegPaSupply: %02x, ",   mosi[3]);
-	fprintf(log_fp, "PaDutyCycle: %02x, ",   mosi[4]);
-	fprintf(log_fp, "PaHpSel: %02x",   mosi[5]);
-	break;
-
-    case SET_PACKET_PARAM:
-
-	switch(packet_type) {
-
-	default:
-	    fprintf(log_fp, "SET_PACKET_PARAM: unknown packet type: %x.  Assume LORA\n", packet_type);
-
-	    /* fall-through */
-
-	case PACKET_TYPE_LORA:
-	    checkPacketSize("SET_PACKET_PARAM (LORA)", 8);
-	    fprintf(log_fp, "PbLength: %04x ",  (mosi[2] << 8) | mosi[3]);
-	    fprintf(log_fp, "HeaderType: %02x ",  mosi[4]);
-
-	    payload_length = mosi[5];
-
-	    fprintf(log_fp, "PayloadLen: %02x ",  mosi[5]);
-	    fprintf(log_fp, "CRC: %02x ",  mosi[6]);
-	    fprintf(log_fp, "InvertIQ: %02x ",  mosi[7]);
-	    break;
-	}
-	break;
-
-    case SET_PACKET_TYPE:
-	checkPacketSize("SET_PACKET_TYPE", 3);
-
-	packet_type = mosi[2];
-
-	fprintf(log_fp, "PacketType: %02x ", packet_type);
-	break;
-
-    case SET_REG_MODE:
-	checkPacketSize("SET_REG_MODE", 3);
-
-	fprintf(log_fp, "RegMode: %02x ",  mosi[2]);
-	break;
-
-    case SET_RF_FREQUENCY:
-	checkPacketSize("SET_RF_FREQUENCY", 6);
-
-	freq = (mosi[2] << 24) | (mosi[3] << 16) | (mosi[4] << 8) | (mosi[5] << 0);
-	fprintf(log_fp, "Frequency: %04x (%d)",  freq, freq);
-	break;
-
-    case SET_RX:
-	checkPacketSize("SET_RX", 5);
-
-	timeout = (mosi[2] << 16) | (mosi[3] << 8) | mosi[4];
-
-	fprintf(log_fp, "timeout: 0x%x (%d)", timeout, timeout);
-	break;
-
-    case SET_RX_BOOSTED:
-	checkPacketSize("SET_RX_BOOSTED", 3);
-	fprintf(log_fp, "boosted: %02x", mosi[2]);
-	break;
-
-    case SET_SLEEP:
-	checkPacketSize("SET_SLEEP", 7);
-	fprintf(log_fp, "sleepConfig: %0x ", mosi[2]);
-	fprintf(log_fp, "time: %x", get_32(&mosi[3]) );
-	break;
-
-    case SET_STANDBY:
-	checkPacketSize("SET_STANDBY", 3);
-
-	fprintf(log_fp, "StbyConfig: %02x ",  mosi[2]);
-	break;
-
-    case SET_TCXO_MODE:
-	checkPacketSize("SET_TCXO_MODE", 6);
-
-	delay = get_24(&mosi[3]);
-
-	fprintf(log_fp, "tune: %02x delay: %x ",  mosi[2], delay);
-	break;
-
-    case SET_TX:
-	checkPacketSize("SET_TX", 5);
-
-	timeout = (mosi[2] << 16) | (mosi[3] << 8) | mosi[4];
-
-	fprintf(log_fp, "timeout: 0x%x (%d)", timeout, timeout);
-	break;
-
-    case SET_TXCW:
-	checkPacketSize("SET_TXCW", 2);
-	break;
-
-    case SET_TX_PARAMS:
-	checkPacketSize("SET_TX_PARAMS", 4);
-	fprintf(log_fp, "TxPower: %02x ",  mosi[2]);
-	fprintf(log_fp, "RampTime: %02x ",  mosi[3]);
-	break;
-
-    case STOP_TIMEOUT_ON_PREAMBLE:
-	checkPacketSize("STOP_TIMEOUT_ON_PREAMBLE", 3);
-	fprintf(log_fp, "stop: %02x", mosi[2]);
-	break;
-
-    case SYS_GET_STATUS:
-	checkPacketSize("SYS_GET_STATUS", 6);
-
-	parse_stat1(log_fp, miso[0]);
-	parse_stat2(miso[1]);
-	parse_irq(log_fp, &miso[2]);
-	break;
-
-    case SYS_GET_VERSION:
-	checkPacketSize("SYS_GET_VERSION", 2);
-	set_pending_cmd(SYS_GET_VERSION);
-	break;
-
-    case (SYS_GET_VERSION | PENDING):
-	checkPacketSize("SYS_GET_VERSION (resp)", 5);
-
-	parse_stat1(log_fp, miso[0]);
-
-	fprintf(log_fp, "hw: %x ", miso[1]);
-	fprintf(log_fp, "usecase: %x ", miso[2]);
-	fprintf(log_fp, "fw: %d.%d", miso[3], miso[4]);
-
-	clear_pending_cmd(SYS_GET_VERSION);
-	break;
-
-   case SYS_READ_BUFFER_8:
-	checkPacketSize("SYS_READ_BUFFER_8", 4);
-
-	payload_length = mosi[3];
-
-	fprintf(log_fp, "offset: %x length: %d ", mosi[2], mosi[3] );
-	set_pending_cmd(SYS_READ_BUFFER_8);
-	break;
-
-    case ( SYS_READ_BUFFER_8 | PENDING):
-	/*
-	 * A stat1 is returned as the first byte of data, so add 1.
-	 */
-	checkPacketSize("SYS_READ_BUFFER_8 (resp)", payload_length + 1);
-
-	parse_stat1(log_fp, miso[0]);
-
-	fprintf(log_fp, "bytes: ");
-
-	for (i=0; i < payload_length; i++) {
-	    fprintf(log_fp, "%02x ", miso[i + 1]);
-	}
-
-	clear_pending_cmd(SYS_READ_BUFFER_8);
-	break;
-
-    case SYS_UNKNOWN_0108:
-	checkPacketSize("SYS_UNKNOWN_0108", 7);
-	hex_dump(log_fp, &mosi[2], 5);
-	break;
-
-    case SYS_WRITE_BUFFER_8:
-	checkPacketSize("SYS_WRITE_BUFFER_8", payload_length + 2);
-
-	for (i=0; i< payload_length; i++) {
-	    fprintf(log_fp, "%02x ", mosi[i + 2]);
-	}
-
-	break;
-
-    case WRITE_REG_MEM_MASK32:
-	checkPacketSize("WRITE_REG_MEM_MASK32", 14);
-
-	fprintf(log_fp, "addr: %x ", get_32(&mosi[2]));
-	fprintf(log_fp, "mask: %x ", get_32(&mosi[6]));
-	fprintf(log_fp, "data: %x ", get_32(&mosi[10]));
-	//	break;
-
-	//    default:
-	hdr(parser->lf, packet_start_time, "UNHANDLED_CMD");
-	fprintf(log_fp, "Unhandled command: %04x length: %d \n", cmd, data->accumulated_count);
+	fprintf(log_fp, "unknown command group: %x \n", group);
 	exit(1);
     }
 
-    fprintf(log_fp, "\n");
-}
-
-static void almanac_update(FILE *log_fp, uint8_t *cp)
-{
-    uint8_t SVid;
-
-    SVid = cp[0];
-
-    if (SVid == 0x80) {
-	fprintf(log_fp, "Header: ");
-	fprintf(log_fp, "Date: %04x " , ((cp[1] << 8) | cp[2]) );
-	fprintf(log_fp, "CRC:  %04x" , ((cp[3] << 24) | (cp[4] << 16) | (cp[5] << 8) | cp[6]) );
-    }
-    else {
-	fprintf(log_fp, "SV: %02x | ", SVid);
-	hex_dump(log_fp, &cp[1], 16);
-
-	fprintf(log_fp, "| CA: %04x", (cp[16] << 8) | cp[17]);
-	fprintf(log_fp, "| MOD: %02x", cp[18]);
-	fprintf(log_fp, "| CONST: %02x", cp[19]);
-    }
-
+fprintf(log_fp, "\n");
 }
 
 static signal_t signals_semtech[] =

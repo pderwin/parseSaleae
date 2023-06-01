@@ -4,8 +4,8 @@
 #include "hdr.h"
 #include "system.h"
 
-#define MY_GROUP LR1110_GROUP_SYSTEM
-#define MY_GROUP_STR "SYSTEM"
+#define MY_GROUP     LR1110_GROUP_WIFI
+#define MY_GROUP_STR "WIFI"
 
 enum {
       GET_STATUS           = 0x00,
@@ -36,7 +36,7 @@ enum {
 static void parse_irq(FILE *log_fp, uint8_t *miso);
 
 
-void lr1110_system(parser_t *parser)
+void lr1110_wifi(parser_t *parser)
 {
     uint32_t  cmd;
     uint32_t delay;
@@ -310,9 +310,9 @@ void lr1110_system(parser_t *parser)
 	break;
 
     case WRITE_BUFFER_8:
-	checkPacketSize("WRITE_BUFFER_8", 0);
+	checkPacketSize("WRITE_BUFFER_8", payload_length + 2);
 
-	for (i=0; i < (data->count - 2); i++) {
+	for (i=0; i< payload_length; i++) {
 	    fprintf(log_fp, "%02x ", mosi[i + 2]);
 	}
 

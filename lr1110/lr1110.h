@@ -1,79 +1,17 @@
 #pragma once
 
+#include <stdio.h>
+#include "parser.h"
+
 #define PENDING (0x80000000)
 
 enum {
+      LR1110_GROUP_ZERO   = 0,
       LR1110_GROUP_SYSTEM = 1,
       LR1110_GROUP_RADIO  = 2,
+      LR1110_GROUP_WIFI   = 3,
       LR1110_GROUP_GNSS   = 4,
       LR1110_GROUP_CRYPTO = 5,
-};
-
-enum {
-      SYS_GET_STATUS              = 0x0100,
-      SYS_GET_VERSION             = 0x0101,
-      SYS_UNKNOWN_0108            = 0x0108,
-      SYS_WRITE_BUFFER_8          = 0x0109,
-      SYS_READ_BUFFER_8           = 0x010a,
-      WRITE_REG_MEM_MASK32        = 0x010c,
-      GET_ERRORS                  = 0x010d,
-      CLEAR_ERRORS                = 0x010e,
-      CALIBRATE                   = 0x010f,
-      SET_REG_MODE                = 0x0110,
-      SET_DIO_AS_RF_SWITCH        = 0x0112,
-      SET_DIO_IRQ_PARAMS          = 0x0113,
-      CLEAR_IRQ                   = 0x0114,
-      CONFIG_LF_CLOCK             = 0x0116,
-      SET_TCXO_MODE               = 0x0117,
-      REBOOT                      = 0x0118,
-      GET_VBAT                    = 0x0119,
-      SET_SLEEP                   = 0x011b,
-      SET_STANDBY                 = 0x011c,
-      GET_RANDOM                  = 0x0120,
-      GET_DEV_EUI                 = 0x0125,
-      GET_JOIN_EUI                = 0x0126,
-      READ_DEVICE_PIN             = 0x0127,
-
-      RADIO_GET_STATS             = 0x0201,
-      GET_PACKET_TYPE             = 0x0202,
-      GET_RX_BUFFER_STATUS        = 0x0203,
-      GET_PACKET_STATUS           = 0x0204,
-      SET_LORA_PUBLIC_NETWORK     = 0x0208,
-      SET_RX                      = 0x0209,
-      SET_TX                      = 0x020a,
-      SET_RF_FREQUENCY            = 0x020b,
-      SET_PACKET_TYPE             = 0x020e,
-      SET_MODULATION_PARAM        = 0x020f,
-      SET_PACKET_PARAM            = 0x0210,
-      SET_TX_PARAMS               = 0x0211,
-      SET_PA_CFG                  = 0x0215,
-      STOP_TIMEOUT_ON_PREAMBLE    = 0x0217,
-      SET_TXCW                    = 0x0219,
-      LORA_SYNCH_TIMEOUT          = 0x021b,
-      SET_RX_BOOSTED              = 0x0227,
-      SEMTECH_UNKNOWN_0229        = 0x0229,
-      SEMTECH_UNKNOWN_022b        = 0x022b,
-
-      GNSS_SET_CONSTELLATION      = 0x0400,
-      GNSS_SET_MODE               = 0x0408,
-      GNSS_SCAN_AUTONOMOUS        = 0x0409,
-      GNSS_SCAN_ASSISTED          = 0x040a,
-      GNSS_GET_RESULT_SIZE        = 0x040c,
-      GNSS_READ_RESULTS           = 0x040d,
-      GNSS_ALMANAC_FULL_UPDATE    = 0x040e,
-      GNSS_UNKNOWN_040F           = 0x040f,
-      GNSS_GET_CONTEXT_STATUS     = 0x0416,
-
-      // not documented this way      GNSS_SCAN_AUTONOMOUS        = 0x0430,
-
-      CRYPTO_SET_KEY              = 0x0502,
-      CRYPTO_DERIVE_AND_STORE_KEY = 0x0503,
-      CRYPTO_PROCESS_JOIN_ACCEPT  = 0x0504,
-
-      CRYPTO_COMPUTE_AES_CMAC     = 0x0505,
-      CRYPTO_STORE_TO_FLASH       = 0x050a,
-      CRYPTO_RESTORE_FROM_FLASH   = 0x050b,
-
 };
 
 typedef enum {
@@ -100,3 +38,52 @@ typedef enum {
 	      IRQ_FSK_LEN_ERROR     = (1 << 24),
 	      IRQ_FSK_ADDR_ERROR    = (1 << 25),
 } irq_e;
+
+
+typedef struct {
+    uint32_t nss;
+    uint32_t clk;
+    uint32_t mosi;
+    uint32_t miso;
+    uint32_t busy;
+    uint32_t irq;
+} sample_t;
+
+typedef struct lr1110_data_s {
+    sample_t last_sample;
+    sample_t sample;
+
+    time_nsecs_t packet_start_time;
+
+    uint32_t accumulated_bits;
+    uint32_t accumulated_miso_byte;
+    uint32_t accumulated_mosi_byte;
+
+    uint32_t count;
+
+#define NUMBER_BYTES (64)
+
+    uint8_t  mosi[NUMBER_BYTES];
+    uint8_t  miso[NUMBER_BYTES];
+
+    uint32_t pending_cmd;
+    uint32_t pending_group;
+
+} lr1110_data_t;
+
+
+#define checkPacketSize(__str, __size) _checkPacketSize(parser, MY_GROUP_STR, __str, __size, cmd)
+#define clear_pending_cmd(__cmd) _clear_pending_cmd(parser, MY_GROUP, __cmd)
+#define set_pending_cmd(__cmd) _set_pending_cmd(parser, MY_GROUP, __cmd)
+#define parse_stat1(__stat1) _parse_stat1(parser, __stat1)
+#define parse_stat2(__stat2) _parse_stat2(parser, __stat2)
+
+void     _checkPacketSize(parser_t *parser, char *group_str, char *str, uint32_t size, uint32_t cmd);
+void     _clear_pending_cmd(parser_t *parser, uint32_t group, uint32_t cmd);
+uint32_t get_24(uint8_t *mosi);
+uint32_t get_16(uint8_t *mosi);
+uint32_t get_32(uint8_t *mosi);
+void     hex_dump(FILE *log_fp, uint8_t *cp, uint32_t count);
+void     _parse_stat1(parser_t *parser, uint8_t stat1);
+void     _parse_stat2(parser_t *parser, uint8_t stat2);
+void     _set_pending_cmd(parser_t *parser, uint32_t group, uint32_t cmd);
