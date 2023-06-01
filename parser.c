@@ -198,17 +198,23 @@ static void parser_connect_signals (parser_t *parser)
  *-------------------------------------------------------------------------*/
 void parser_dump (void)
 {
-     parser_t
+    char
+	*log_file;
+    parser_t
 	*parser;
-     signal_t
-	 *signal;
+    signal_t
+	*signal;
 
     parser = first_parser;
 
-    printf("\n\nParser     | available | missing signals\n");
-    printf("-----------+-----------+----------------\n");
+    printf("\n\nParser     | enabled |    log file    | missing signals\n");
+    printf("-----------+-----------+----------------+------------\n");
+
     while(parser) {
-	printf("%-10.10s |     %d     | ", parser->name, parser->enable);
+
+	log_file = parser->log_file ? parser->log_file : "";
+
+	printf("%-10.10s |     %d     | %-20.20s | ", parser->name, parser->enable, log_file);
 
 	if (parser->signals) {
 	    signal = parser->signals;

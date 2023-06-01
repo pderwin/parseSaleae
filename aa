@@ -5,9 +5,11 @@
 make --quiet -C ~/libs/csv
 
 # printf "\n\nPARSE_LCD \n\n"
-make --quiet RSYNC
+# make --quiet RSYNC
 
-cmake -S . -B build -DCMAKE_BUILD_TYPE=DEBUG
+if [ ! -d build ] ; then
+    cmake -S . -B build -DCMAKE_BUILD_TYPE=DEBUG
+fi
 
 cmake --build build
 rc=$?

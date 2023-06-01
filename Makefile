@@ -2,11 +2,13 @@
 
 # dump_tags = -r
 
+csv_filename ?= digital@1125___5_31_2023
 csv_filename ?= digital
 
 all : digital.lst
 
 csv_dir = ~/Downloads/trace
+csv_dir = ~/Downloads
 
 
 .PHONY: RSYNC

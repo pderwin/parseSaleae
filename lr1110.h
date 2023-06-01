@@ -46,6 +46,12 @@ enum {
       SEMTECH_UNKNOWN_0229        = 0x0229,
       SEMTECH_UNKNOWN_022b        = 0x022b,
 
+      GNSS_SET_CONSTELLATION      = 0x0400,
+      GNSS_SCAN_AUTONOMOUS        = 0x0409,
+      GNSS_GET_RESULT_SIZE        = 0x040c,
+      GNSS_READ_RESULTS           = 0x040d,
+      // not documented this way      GNSS_SCAN_AUTONOMOUS        = 0x0430,
+
       CRYPTO_SET_KEY              = 0x0502,
       CRYPTO_DERIVE_AND_STORE_KEY = 0x0503,
       CRYPTO_COMPUTE_AES_CMAC     = 0x0505,

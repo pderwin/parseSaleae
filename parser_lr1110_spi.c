@@ -156,9 +156,9 @@ static void process_frame (parser_t *parser, frame_t *frame)
     memcpy(&data->last_sample, &data->sample, sizeof(sample_t));
 }
 
-#define checkPacketSize(__str, __size) _checkPacketSize(parser, __str, __size)
+#define checkPacketSize(__str, __size) _checkPacketSize(parser, __str, __size, cmd)
 
-static void _checkPacketSize(parser_t *parser, char *str, uint32_t size)
+static void _checkPacketSize(parser_t *parser, char *str, uint32_t size, uint32_t cmd)
 {
     lr1110_data_t *data = parser->data;
 
@@ -167,9 +167,11 @@ static void _checkPacketSize(parser_t *parser, char *str, uint32_t size)
     if (size) {
 	if (data->accumulated_count != size) {
 	    fprintf(parser->lf->fp, "<Length error.  Expected: %d bytes, got: %d > ", size, data->accumulated_count);
-	    exit(1);
+	    //	    exit(1);
 	}
     }
+
+    fprintf(parser->lf->fp, "%04x | ", cmd & 0xffff);
 }
 
 static uint32_t pending_cmd;
@@ -228,32 +230,41 @@ static void _set_pending_cmd(FILE *log_fp, uint32_t cmd)
 
 static void parse_irq(FILE *log_fp, uint8_t *miso)
 {
-   uint32_t irq;
+    uint32_t bit_num;
+    uint32_t irq;
 
-   irq = (miso[0] << 24) | (miso[1] << 16) | (miso[2] << 8) | miso[3];
+    irq = (miso[0] << 24) | (miso[1] << 16) | (miso[2] << 8) | miso[3];
 
-   fprintf(log_fp, "irq: %08x (", irq);
+    fprintf(log_fp, "irq: %08x (", irq);
 
 #define DO_BIT(mask) \
-   if (irq & mask) { \
-       fprintf(log_fp, "%s ", # mask); \
-       irq &= ~mask; \
-   }
+    if (irq & mask) {		       \
+	fprintf(log_fp, "%s ", # mask);		\
+	irq &= ~mask;				\
+    }
 
-   DO_BIT(IRQ_CMD_ERROR);
-   DO_BIT(IRQ_ERROR);
-   DO_BIT(IRQ_TIMEOUT);
-   DO_BIT(IRQ_TX_DONE);
-   DO_BIT(IRQ_RX_DONE);
-   DO_BIT(IRQ_PREAMBLE_DETECTED);
-   DO_BIT(IRQ_SYNCWORD_VALID);
+    DO_BIT(IRQ_CMD_ERROR);
+    DO_BIT(IRQ_ERROR);
+    DO_BIT(IRQ_TIMEOUT);
+    DO_BIT(IRQ_TX_DONE);
+    DO_BIT(IRQ_RX_DONE);
+    DO_BIT(IRQ_PREAMBLE_DETECTED);
+    DO_BIT(IRQ_SYNCWORD_VALID);
+    DO_BIT(IRQ_GNSS_DONE);
 
-   fprintf(log_fp, ") ");
+    fprintf(log_fp, ") ");
 
-   if (irq) {
-       fprintf(log_fp, "unparsed irq: %08x\n", irq);
-       exit(1);
-   }
+    if (irq) {
+	fprintf(log_fp, "\n\nERROR: unparsed irq: %08x.  ", irq);
+
+	for (bit_num = 0; bit_num < 32; bit_num++) {
+	    if (irq & (1 << bit_num)) {
+		fprintf(log_fp, "bit number: %d \n", bit_num);
+		exit(1);
+	    }
+
+	}
+    }
 }
 
 static void parse_stat1(FILE *log_fp, uint8_t stat1)
@@ -314,7 +325,7 @@ static void _parse_stat2(FILE *log_fp, uint8_t stat2)
 
     default:
 	fprintf(log_fp, "unknown reset status: %x\n", reset_status);
-	exit(1);
+	//	exit(1);
     }
 
     fprintf(log_fp, "reset_status: %x (%s) ", reset_status, reset_status_str);
@@ -488,8 +499,8 @@ static void parse_packet (parser_t *parser)
 
 	parse_stat1(log_fp, miso[0]);
 
-	fprintf(log_fp, "rssipkt: %x",         miso[1]);
-	fprintf(log_fp, "snrpkt: %x",          miso[2]);
+	fprintf(log_fp, "rssipkt: %x ",         miso[1]);
+	fprintf(log_fp, "snrpkt: %x ",          miso[2]);
 	fprintf(log_fp, "signal_rssi_pkt: %x", miso[3]);
 
 	clear_pending_cmd(GET_PACKET_TYPE);
@@ -518,6 +529,40 @@ static void parse_packet (parser_t *parser)
 
 	fprintf(log_fp, "random: %x", get_32(&miso[0]) );
 	clear_pending_cmd(GET_RANDOM);
+	break;
+
+    case GNSS_GET_RESULT_SIZE:
+	checkPacketSize("GNSS_GET_RESULT_SIZE", 2);
+	set_pending_cmd(GNSS_GET_RESULT_SIZE);
+	break;
+
+    case ( GNSS_GET_RESULT_SIZE | PENDING):
+	checkPacketSize("GNSS_GET_RESULT_SIZE (rsp)", 3);
+
+	parse_stat1(log_fp, miso[0]);
+
+	payload_length = get_16(&miso[1]);
+
+	fprintf(log_fp, "result_size: %d ", payload_length );
+
+	clear_pending_cmd(GNSS_GET_RESULT_SIZE);
+	break;
+
+    case GNSS_READ_RESULTS:
+	checkPacketSize("GNSS_READ_RESULTS", 2);
+	set_pending_cmd(GNSS_READ_RESULTS);
+	break;
+
+    case ( GNSS_READ_RESULTS | PENDING):
+	checkPacketSize("GNSS_READ_RESULTS (rsp)", payload_length + 1);
+
+	parse_stat1(log_fp, miso[0]);
+
+	for (i=0; i< payload_length + 1; i++) {
+	    fprintf(log_fp, "%02x ", miso[i] );
+	}
+
+	clear_pending_cmd(GNSS_READ_RESULTS);
 	break;
 
     case GET_RX_BUFFER_STATUS:
@@ -608,7 +653,23 @@ static void parse_packet (parser_t *parser)
 	clear_pending_cmd(GET_VERSION);
 	break;
 
-    case LORA_SYNCH_TIMEOUT:
+    case GNSS_SET_CONSTELLATION:
+	checkPacketSize("GNSS_SET_CONSTELLATION", 3);
+
+	fprintf(log_fp, "to_use: %x ", mosi[2]);
+	break;
+
+
+    case GNSS_SCAN_AUTONOMOUS:
+	checkPacketSize("GNSS_SCAN_AUTONOMOUS", 9);
+
+	fprintf(log_fp, "time: %x ",        get_32(&mosi[2]));
+	fprintf(log_fp, "effort: %x ",      mosi[6]);
+	fprintf(log_fp, "result_mask: %x ", mosi[7]);
+	fprintf(log_fp, "nbsvmax: %x ",     mosi[8]);
+	break;
+
+   case LORA_SYNCH_TIMEOUT:
 	checkPacketSize("LORA_SYNCH_TIMEOUT", 3);
 	fprintf(log_fp, "symbol: %02x ( should be zero )", mosi[2]);
 	break;
@@ -618,7 +679,7 @@ static void parse_packet (parser_t *parser)
 
 	payload_length = mosi[3];
 
-	fprintf(log_fp, "offset: %x length: %x ", mosi[2], mosi[3] );
+	fprintf(log_fp, "offset: %x length: %d ", mosi[2], mosi[3] );
 	set_pending_cmd(READ_BUFFER_8);
 	break;
 
@@ -626,7 +687,7 @@ static void parse_packet (parser_t *parser)
 	/*
 	 * A stat1 is returned as the first byte of data, so add 1.
 	 */
-	checkPacketSize("READ_BUFFER_8 (resp)", payload_length + 1);
+	checkPacketSize("READ_BUFFER_8 (resp)", payload_length);
 
 	fprintf(log_fp, "bytes: ");
 
@@ -857,7 +918,7 @@ static signal_t signals_semtech[] =
      { "mosi", &lr1110_semtech_data.sample.mosi},
      { "miso", &lr1110_semtech_data.sample.miso},
      { "busy", &lr1110_semtech_data.sample.busy},
-     { "irq",  &lr1110_semtech_data.sample.irq},
+     { "irq",  &lr1110_semtech_data.sample.irq, .deglitch_nsecs = 150 },
      { NULL, NULL}
     };
 
@@ -868,7 +929,7 @@ static signal_t signals_n1[] =
      { "n1_mosi", &lr1110_n1_data.sample.mosi},
      { "n1_miso", &lr1110_n1_data.sample.miso},
      { "n1_busy", &lr1110_n1_data.sample.busy},
-     { "n1_irq",  &lr1110_n1_data.sample.irq},
+     { "n1_irq",  &lr1110_n1_data.sample.irq, .deglitch_nsecs = 150 },
      { NULL, NULL}
     };
 
