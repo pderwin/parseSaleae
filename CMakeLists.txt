@@ -14,6 +14,11 @@ add_executable(parseSaleae
 	localtime.c
 	log_file.c
 	lookup.c
+	lr1110/crypto.c
+	lr1110/gnss.c
+	lr1110/radio.c
+	lr1110/system.c
+	lr1110/parser.c
 	packet.c
 	panel_i2c.c
 	panel_spi.c
@@ -26,7 +31,6 @@ add_executable(parseSaleae
 	parser_hpal.c
 	parser_i2c.c
 	parser_lbtrace.c
-	parser_lr1110_spi.c
 	parser_spi_device.c
 	parser_spi_uart.c
 	parser_hsync.c
@@ -36,6 +40,7 @@ add_executable(parseSaleae
 	st25dv.c
 	tag.c )
 
+target_include_directories(parseSaleae PUBLIC . )
 target_include_directories(parseSaleae PUBLIC /home/erwin/libs )
 
 target_include_directories(parseSaleae PUBLIC /home/erwin/jake-v-firmware.041522/source/zephyr-jake-v/include)
