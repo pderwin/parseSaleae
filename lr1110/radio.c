@@ -24,8 +24,8 @@ enum {
       SET_TXCW                    = 0x19,
       LORA_SYNCH_TIMEOUT          = 0x1b,
       SET_RX_BOOSTED              = 0x27,
-      SEMTECH_UNKNOWN_0229        = 0x29,
-      SEMTECH_UNKNOWN_022b        = 0x2b,
+      RADIO_SET_RSSI_CALIBRATION  = 0x29,
+      SET_LORA_SYNC_WORD          = 0x2b,
 };
 
 static packet_type_e packet_type    = PACKET_TYPE_NONE;
@@ -33,26 +33,22 @@ static uint32_t      payload_length = 0;
 
 void lr1110_radio(parser_t *parser)
 {
-    uint32_t cmd;
-    uint32_t freq;
-    uint32_t i;
-    uint32_t timeout;
-   lr1110_data_t *data = parser->data;
-    uint8_t  *mosi;
-    uint8_t  *miso;
-    FILE     *log_fp = parser->lf->fp;
+    uint8_t
+	*miso,
+	*mosi;
+    uint32_t
+	cmd,
+	freq,
+	timeout;
+    lr1110_data_t
+	*data = parser->data;
+    FILE
+	*log_fp = parser->lf->fp;
 
     mosi = data->mosi;
     miso = data->miso;
 
-    (void) mosi;
-
-    if (data->pending_cmd) {
-	cmd = data->pending_cmd;
-    }
-    else{
-	cmd = data->mosi[1];
-    }
+    cmd = get_command(data);
 
     switch (cmd) {
 
@@ -61,7 +57,7 @@ void lr1110_radio(parser_t *parser)
 	set_pending_cmd(GET_PACKET_STATUS);
 	break;
 
-    case (GET_PACKET_STATUS | PENDING):
+    case RESPONSE(GET_PACKET_STATUS):
 	checkPacketSize("GET_PACKET_STATUS (resp)", 4);
 
 	parse_stat1(miso[0]);
@@ -69,8 +65,6 @@ void lr1110_radio(parser_t *parser)
 	fprintf(log_fp, "rssipkt: %x ",         miso[1]);
 	fprintf(log_fp, "snrpkt: %x ",          miso[2]);
 	fprintf(log_fp, "signal_rssi_pkt: %x", miso[3]);
-
-	clear_pending_cmd(GET_PACKET_TYPE);
 	break;
 
     case GET_PACKET_TYPE:
@@ -78,12 +72,10 @@ void lr1110_radio(parser_t *parser)
 	set_pending_cmd(GET_PACKET_TYPE);
 	break;
 
-    case (GET_PACKET_TYPE | PENDING):
+    case RESPONSE(GET_PACKET_TYPE):
 	checkPacketSize("GET_PACKET_TYPE (resp)", 2);
 
 	fprintf(log_fp, "type: %x", miso[1]);
-
-	clear_pending_cmd(GET_PACKET_TYPE);
 	break;
 
 
@@ -92,15 +84,13 @@ void lr1110_radio(parser_t *parser)
 	set_pending_cmd(GET_RX_BUFFER_STATUS);
 	break;
 
-    case ( GET_RX_BUFFER_STATUS | PENDING):
+    case RESPONSE(GET_RX_BUFFER_STATUS):
 	checkPacketSize("GET_RX_BUFFER_STATUS (resp)", 3);
 
 	parse_stat1(miso[0]);
 
 	fprintf(log_fp, "payload length: %d ", miso[1] );
 	fprintf(log_fp, "RX buffer start: %x ", miso[2] );
-
-	clear_pending_cmd(GET_RX_BUFFER_STATUS);
 	break;
 
     case GET_STATS:
@@ -108,7 +98,7 @@ void lr1110_radio(parser_t *parser)
 	set_pending_cmd(GET_STATS);
 	break;
 
-    case (GET_STATS | PENDING):
+    case RESPONSE(GET_STATS):
 	checkPacketSize("GET_STATS (resp)", 9);
 
 	parse_stat1(miso[0]);
@@ -117,8 +107,6 @@ void lr1110_radio(parser_t *parser)
 	fprintf(log_fp, "crc error: %d ", get_16(&miso[3]) );
 	fprintf(log_fp, "hdr error: %d ", get_16(&miso[5]) );
 	fprintf(log_fp, "false sync: %d", get_16(&miso[7]) );
-
-	clear_pending_cmd(GET_STATS);
 	break;
 
     case LORA_SYNCH_TIMEOUT:
@@ -126,23 +114,20 @@ void lr1110_radio(parser_t *parser)
 	fprintf(log_fp, "symbol: %02x ( should be zero )", mosi[2]);
 	break;
 
-    case SEMTECH_UNKNOWN_0229:
+    case RADIO_SET_RSSI_CALIBRATION:
 
-	checkPacketSize("SEMTECH_UNKNOWN_0229", 13);
+	checkPacketSize("RADIO_SET_RSSI_CALIBRATION", 13);
 
 	fprintf(log_fp, "Bytes: ");
 
-	hex_dump(log_fp, mosi, 13);
+	hex_dump(mosi, 13);
 
 	break;
 
-    case SEMTECH_UNKNOWN_022b:
-	checkPacketSize("SEMTECH_UNKNOWN_022b", 3);
-	fprintf(log_fp, "Bytes: \n");
-	for (i=0; i<3; i++) {
-	    fprintf(log_fp, "   %2d: %x \n", i, mosi[i]);
-	}
+    case SET_LORA_SYNC_WORD:
+	checkPacketSize("SET_LORA_SYNC_WORD", 3);
 
+	fprintf(log_fp, "Word: %x", mosi[2]);
 	break;
 
     case SET_LORA_PUBLIC_NETWORK:

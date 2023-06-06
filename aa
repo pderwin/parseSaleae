@@ -1,5 +1,8 @@
 #!/bin/sh
 
+FILENAME='csv_filename=digital@1143___6_02_2023'
+
+
 # clear
 
 # printf "\n\nCSV \n\n"
@@ -24,7 +27,6 @@ if [ ! -r parseSaleae ] ; then
     ln -s build/parseSaleae
 fi
 
-make --quiet digital.lst
-# make --quiet csv_filename=semtech digital.lst
+make --quiet $FILENAME gnss.lst
 
 date

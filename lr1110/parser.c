@@ -10,7 +10,7 @@
 #include "lr1110/system.h"
 #include "lr1110/wifi.h"
 
-// #define VERBOSE 1
+#define HEX_DUMP_PACKETS 1
 
 /*
  * packet sample frequency to support filtering of i2c_clk signal.
@@ -51,7 +51,7 @@ static void clear_packet (lr1110_data_t *data)
     clear_accumulator(data);
 }
 
-void hex_dump(FILE *log_fp, uint8_t *cp, uint32_t count)
+void _hex_dump(FILE *log_fp, uint8_t *cp, uint32_t count)
 {
     uint32_t i;
 
@@ -130,6 +130,11 @@ static void process_frame (parser_t *parser, frame_t *frame)
 			data->accumulated_miso_byte);
 #endif
 
+		if (data->count == NUMBER_BYTES) {
+		    fprintf(parser->lf->fp, "ERROR: miso/mosi buffer overrun\n");
+		    exit(1);
+		}
+
 		data->miso[data->count] = data->accumulated_miso_byte;
 		data->mosi[data->count] = data->accumulated_mosi_byte;
 
@@ -159,24 +164,21 @@ void _checkPacketSize(parser_t *parser, char *group_str, char *str, uint32_t siz
     fprintf(parser->lf->fp, "%04x | ", cmd & 0xffff);
 }
 
-void _clear_pending_cmd(parser_t *parser, uint32_t group, uint32_t cmd)
+uint32_t get_command (lr1110_data_t *data)
 {
-    lr1110_data_t *data = parser->data;
+    uint32_t cmd;
 
-    (void) group;
+    if (data->pending_cmd) {
+	cmd = data->pending_cmd;
 
-    if (! data->pending_cmd) {
-
-	FILE *log_fp;
-
-	log_fp = parser->lf->fp;
-
-	fprintf(log_fp, "<Clear Pending Command Error.  cmd: %x > ", cmd);
-	exit(1);
+	data->pending_cmd   = 0;
+	data->pending_group = 0;
+    }
+    else{
+	cmd = data->mosi[1];
     }
 
-    data->pending_cmd   = 0;
-    data->pending_group = 0;
+    return cmd;
 }
 
 uint32_t get_16(uint8_t *mosi)
@@ -209,11 +211,9 @@ uint32_t get_32(uint8_t *mosi)
 void _set_pending_cmd(parser_t *parser, uint32_t group, uint32_t cmd)
 {
     lr1110_data_t *data = parser->data;
+    FILE *log_fp = parser->lf->fp;
 
     if (data->pending_cmd) {
-
-	FILE *log_fp = parser->lf->fp;
-
 	fprintf(log_fp, "<Pending Command Error.  pending: %x cmd: %x > ", data->pending_cmd, cmd);
 	exit(1);
     }
@@ -329,11 +329,22 @@ static void parse_packet (parser_t *parser)
 
     packet_count++;
 
+#if (HEX_DUMP_PACKETS > 0)
+    fprintf(log_fp, "\nMOSI: ");
+    hex_dump(data->mosi, data->count);
+
+    fprintf(log_fp, "\nMISO: ");
+    hex_dump(data->miso, data->count);
+
+    fprintf(log_fp, "\n");
+#endif
+
     switch(group) {
 
     case LR1110_GROUP_ZERO:
 	{
 	    uint32_t cmd = 0;
+#define MY_GROUP     0
 #define MY_GROUP_STR "ZERO"
 	    checkPacketSize("---- 00's ----", 0);
 	}
@@ -370,8 +381,8 @@ static signal_t signals_semtech[] =
     {
      { "nss",  &lr1110_semtech_data.sample.nss, .deglitch_nsecs = 50 },
      { "clk",  &lr1110_semtech_data.sample.clk, .deglitch_nsecs = 50 },
-     { "mosi", &lr1110_semtech_data.sample.mosi },
-     { "miso", &lr1110_semtech_data.sample.miso },
+     { "mosi", &lr1110_semtech_data.sample.miso },
+     { "miso", &lr1110_semtech_data.sample.mosi },
      { "busy", &lr1110_semtech_data.sample.busy },
      { "irq",  &lr1110_semtech_data.sample.irq, .deglitch_nsecs = 150 },
      { NULL, NULL}

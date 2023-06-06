@@ -13,6 +13,7 @@ enum {
       UNKNOWN_0108         = 0x08,
       WRITE_BUFFER_8       = 0x09,
       READ_BUFFER_8        = 0x0a,
+      CLEAR_RX_BUFFER      = 0x0b,
       WRITE_REG_MEM_MASK32 = 0x0c,
       GET_ERRORS           = 0x0d,
       CLEAR_ERRORS         = 0x0e,
@@ -25,6 +26,7 @@ enum {
       SET_TCXO_MODE        = 0x17,
       REBOOT               = 0x18,
       GET_VBAT             = 0x19,
+      GET_TEMP             = 0x1a,
       SET_SLEEP            = 0x1b,
       SET_STANDBY          = 0x1c,
       GET_RANDOM           = 0x20,
@@ -32,6 +34,28 @@ enum {
       GET_JOIN_EUI         = 0x26,
       READ_DEVICE_PIN      = 0x27,
 };
+
+typedef enum {
+	      IRQ_TX_DONE           = (1 <<  2),
+	      IRQ_RX_DONE           = (1 <<  3),
+	      IRQ_PREAMBLE_DETECTED = (1 <<  4),
+	      IRQ_SYNCWORD_VALID    = (1 <<  5),
+	      IRQ_HEADER_ERR        = (1 <<  6),
+	      IRQ_ERR               = (1 <<  7),
+	      IRQ_CAD_DONE          = (1 <<  8),
+	      IRQ_CAD_DETECTED      = (1 <<  9),
+	      IRQ_TIMEOUT           = (1 << 10),
+	      IRQ_LRFHSS_HOP        = (1 << 11),
+	      IRQ_GNSS_DONE         = (1 << 19),
+	      IRQ_WIFI_DONE         = (1 << 20),
+	      IRQ_LBD               = (1 << 21),
+	      IRQ_CMD_ERROR         = (1 << 22),
+	      IRQ_ERROR             = (1 << 23),
+	      IRQ_FSK_LEN_ERROR     = (1 << 24),
+	      IRQ_FSK_ADDR_ERROR    = (1 << 25),
+} irq_e;
+
+
 
 static void parse_irq(FILE *log_fp, uint8_t *miso);
 
@@ -51,12 +75,7 @@ void lr1110_system(parser_t *parser)
     mosi = data->mosi;
     miso = data->miso;
 
-    if (data->pending_cmd) {
-	cmd = data->pending_cmd;
-    }
-    else{
-	cmd = data->mosi[1];
-    }
+    cmd = get_command(data);
 
     switch (cmd) {
 
@@ -78,6 +97,9 @@ void lr1110_system(parser_t *parser)
 
 	break;
 
+    case CLEAR_RX_BUFFER:
+	checkPacketSize("CLEAR_RX_BUFFER", 2);
+	break;
 
     case CONFIG_LF_CLOCK:
 	checkPacketSize("CONFIG_LF_CLOCK", 3);
@@ -90,7 +112,8 @@ void lr1110_system(parser_t *parser)
 	set_pending_cmd(GET_DEV_EUI);
 	break;
 
-    case ( GET_DEV_EUI | PENDING ):
+    case RESPONSE(GET_DEV_EUI):
+
 	checkPacketSize("GET_DEV_EUI (resp)", 9);
 
 	parse_stat1(miso[0]);
@@ -99,7 +122,6 @@ void lr1110_system(parser_t *parser)
 	    fprintf(log_fp, "%02x ", miso[i+1]);
 	}
 
-	clear_pending_cmd(GET_DEV_EUI);
 	break;
 
 
@@ -108,13 +130,12 @@ void lr1110_system(parser_t *parser)
 	set_pending_cmd(GET_ERRORS);
 	break;
 
-    case (GET_ERRORS | PENDING):
+    case RESPONSE(GET_ERRORS):
 	checkPacketSize("GET_ERRORS (resp)", 3);
 
 	errors = (miso[1] << 8) | miso[2];
 	fprintf(log_fp, "stat1: %x errors: %x",  miso[0], errors);
 
-	clear_pending_cmd(GET_ERRORS);
 	break;
 
     case GET_JOIN_EUI:
@@ -122,7 +143,7 @@ void lr1110_system(parser_t *parser)
 	set_pending_cmd(GET_JOIN_EUI);
 	break;
 
-    case ( GET_JOIN_EUI | PENDING ):
+    case RESPONSE(GET_JOIN_EUI):
 	checkPacketSize("GET_JOIN_EUI (resp)", 9);
 
 	parse_stat1(miso[0]);
@@ -131,7 +152,6 @@ void lr1110_system(parser_t *parser)
 	    fprintf(log_fp, "%02x ", miso[i+1]);
 	}
 
-	clear_pending_cmd(GET_DEV_EUI);
 	break;
 
     case GET_RANDOM:
@@ -139,11 +159,10 @@ void lr1110_system(parser_t *parser)
 	set_pending_cmd(GET_RANDOM);
 	break;
 
-    case (GET_RANDOM | PENDING):
+    case RESPONSE(GET_RANDOM):
 	checkPacketSize("GET_RANDOM (resp)", 4);
 
 	fprintf(log_fp, "random: %x", get_32(&miso[0]) );
-	clear_pending_cmd(GET_RANDOM);
 	break;
 
     case SET_STANDBY:
@@ -162,11 +181,16 @@ void lr1110_system(parser_t *parser)
 	parse_irq(log_fp, &miso[2]);
 	break;
 
+    case GET_TEMP:
+	checkPacketSize("GET_TEMP", 2);
+	//	set_pending_cmd(GET_VBAT);
+	break;
+
     case GET_VBAT:
 	checkPacketSize("GET_VBAT", 2);
 	set_pending_cmd(GET_VBAT);
 	break;
-    case ( GET_VBAT | PENDING ):
+    case RESPONSE(GET_VBAT):
 	{
 
 	    float vBat;
@@ -185,8 +209,6 @@ void lr1110_system(parser_t *parser)
 
 
 	    fprintf(log_fp, "vBat: %5.2f ", vBat);
-
-	    clear_pending_cmd(GET_VBAT);
 	}
 	break;
 
@@ -195,7 +217,8 @@ void lr1110_system(parser_t *parser)
 	set_pending_cmd(GET_VERSION);
 	break;
 
-    case (GET_VERSION | PENDING):
+    case RESPONSE(GET_VERSION):
+
 	checkPacketSize("GET_VERSION (resp)", 5);
 
 	parse_stat1(miso[0]);
@@ -204,7 +227,6 @@ void lr1110_system(parser_t *parser)
 	fprintf(log_fp, "usecase: %x ", miso[2]);
 	fprintf(log_fp, "fw: %d.%d", miso[3], miso[4]);
 
-	clear_pending_cmd(GET_VERSION);
 	break;
 
 
@@ -217,7 +239,7 @@ void lr1110_system(parser_t *parser)
 	set_pending_cmd(READ_BUFFER_8);
 	break;
 
-    case ( READ_BUFFER_8 | PENDING):
+    case RESPONSE(READ_BUFFER_8):
 	/*
 	 * A stat1 is returned as the first byte of data, so add 1.
 	 */
@@ -231,7 +253,6 @@ void lr1110_system(parser_t *parser)
 	    fprintf(log_fp, "%02x ", miso[i + 1]);
 	}
 
-	clear_pending_cmd(READ_BUFFER_8);
 	break;
 
     case READ_DEVICE_PIN:
@@ -243,13 +264,12 @@ void lr1110_system(parser_t *parser)
 	set_pending_cmd(READ_DEVICE_PIN);
 	break;
 
-    case (READ_DEVICE_PIN | PENDING):
+    case RESPONSE(READ_DEVICE_PIN):
 	checkPacketSize("READ_DEVICE_PIN (resp)", 0);
 
 	parse_stat1(miso[0]);
 	fprintf(log_fp, "pins: %08x", get_32(&mosi[1]));
 
-	clear_pending_cmd(READ_DEVICE_PIN);
 	break;
 
     case REBOOT:
@@ -298,7 +318,7 @@ void lr1110_system(parser_t *parser)
 
     case UNKNOWN_0108:
 	checkPacketSize("UNKNOWN_0108", 7);
-	hex_dump(log_fp, &mosi[2], 5);
+	hex_dump(&mosi[2], 5);
 	break;
 
     case WRITE_REG_MEM_MASK32:
@@ -352,6 +372,9 @@ static void parse_irq(FILE *log_fp, uint8_t *miso)
     DO_BIT(IRQ_HEADER_ERR);
     DO_BIT(IRQ_ERR);
     DO_BIT(IRQ_CAD_DONE);
+    DO_BIT(IRQ_CAD_DETECTED);
+    DO_BIT(IRQ_LRFHSS_HOP);
+    DO_BIT(IRQ_WIFI_DONE);
 
     fprintf(log_fp, ") ");
 
