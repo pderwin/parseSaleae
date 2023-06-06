@@ -32,6 +32,7 @@ void
     frame_t
 	frame;
     time_nsecs_t
+	max_synthesize_time,
 	next_frame_time;
 
     memset(&frame, 0, sizeof(frame_t));
@@ -93,12 +94,17 @@ void
 
 		/*
 		 * process current data multiple times to synthesize input.
+		 *
+		 * Surely don't need to synthesize more than 10 mSecs...
 		 */
-		while ((frame.time_nsecs + sample_time_nsecs ) < next_frame_time) {
+		max_synthesize_time = (10 * 1000 * 1000);
+
+		while ((frame.time_nsecs + sample_time_nsecs ) < next_frame_time && (max_synthesize_time > 0) ) {
 
 		    parser_process_frame(&frame);
 
-		    frame.time_nsecs += sample_time_nsecs;
+		    frame.time_nsecs    += sample_time_nsecs;
+		    max_synthesize_time -= sample_time_nsecs;
 		}
 	    }
 	}
