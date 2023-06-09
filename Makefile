@@ -2,22 +2,23 @@
 
 # dump_tags = -r
 
-csv_filename ?= digital
+csv_filename = ${HOME}/Downloads/digital_almanac_update.csv
+csv_filename = ${HOME}/Downloads/trace/digital.csv
+csv_filename = ${HOME}/Downloads/digital_reset_synch_wifi.csv
+
+
+# no_time_stamp = --no-time-stamp
 
 all : digital.lst
-
-csv_dir = ~/Downloads/trace
-csv_dir = ~/Downloads
-
 
 .PHONY: RSYNC
 
 RSYNC :
 	rsync -a bolide:Downloads/trace/digital.csv ~/Downloads/trace
 
-digital.lst : $(csv_dir)/$(csv_filename).csv ./parseSaleae
+digital.lst : $(csv_filename) ./parseSaleae Makefile
 	set-title Parse $<
-	./parseSaleae $(no_uart) $(dump_tags) $(elf) $(parsers) $< > $@
+	./parseSaleae $(no_uart) $(no_time_stamp) $(dump_tags) $(elf) $< > $@
 
 uart2.gsv :  $(csv_dir)/$(fname).csv make_uart2.py Makefile
 	./make_uart2.py $(csv_dir)/$(fname).csv > $@

@@ -140,7 +140,7 @@ void parser_post_connect (void)
 	 * If we're still enabled, then maybe call the connect callback
 	 */
 	if (parser->enable && parser->post_connect) {
-	    parser->post_connect();
+	    parser->post_connect(parser);
 	}
 
 	parser = parser->next;

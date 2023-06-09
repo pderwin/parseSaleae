@@ -8,7 +8,7 @@ struct parser_s {
     char *name;
 
     uint32_t (*connect)      (void);
-    void     (*post_connect) (void);
+    void     (*post_connect) (parser_t *parser);
     void     (*process_frame)(parser_t *parser, frame_t *frame);
 
     uint32_t enable;
