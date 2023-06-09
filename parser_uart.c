@@ -127,8 +127,6 @@ uart_accumulate (frame_t *frame, uart_t *uart)
     case UART_STATE_IDLE:
 	if (wire == 0) {
 
-	    // fprintf(my_parser.lf->fp, "%lld start accumulation.  BT: %lx (%x %x)\n", frame->time_nsecs, uart->bit_time, BIT_TIME_115, BIT_TIME_460);
-
 	    /*
 	     * Track the start of this byte
 	     */
@@ -198,9 +196,9 @@ uart_accumulate (frame_t *frame, uart_t *uart)
 		fprintf(my_parser.lf->fp, "\n");
 
 		/*
-		 * We have to wait for the stop bit now.  Only wait until the middle of the bit so that we will properly detect the next start bit.
+		 * We have to wait for the stop bit now.  We have already incremented the sample_time above
+		 * to be in the middle of the stop bit.
 		 */
-		uart->sample_time += (uart->bit_time / 2);
 		uart->state = UART_STATE_STOP_BIT;
 	    }
 	}
