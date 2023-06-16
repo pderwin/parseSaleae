@@ -77,13 +77,14 @@ static void process_frame (parser_t *parser, frame_t *frame)
 
 	/*
 	 * Check for device being busy
+	 *
+	 * This currently fails when we are exiting sleep
 	 */
-	//	if (data->sample.busy) {
-	//	    hdr(parser->lf, frame->time_nsecs, "NSS_ERROR");
-	//	    fprintf(parser->lf->fp, "ERROR: nss dropped while device was busy\n");
-	//	    exit(1);
-	//	}
-
+	if (data->sample.busy) {
+	    hdr(parser->lf, frame->time_nsecs, "NSS_ERROR");
+	    fprintf(parser->lf->fp, "ERROR: nss dropped while device was busy\n");
+	    //	    exit(1);
+	}
     }
 
     /*
@@ -251,7 +252,6 @@ void _parse_stat1(parser_t *parser, uint8_t stat1)
 
 void _parse_stat2(parser_t *parser, uint8_t stat2)
 {
-    char     *reset_status_str = "???";
     uint32_t reset_status;
     uint32_t chip_mode;
     static char *chip_mode_str[] = {
@@ -264,27 +264,23 @@ void _parse_stat2(parser_t *parser, uint8_t stat2)
 				    "WiFi or GNSS",     // 6
 				    "???"               // 7
     };
-    FILE *log_fp = parser->lf->fp;
+    static char *reset_status_str[] = {
+				    "Cleared",            // 0
+				    "power on/ brown-out",   // 1
+				    "external nReset", // 2
+				    "System Reset",               // 3
+				    "watchdog reset",               // 4
+				    "NSS toggle",               // 5
+				    "RTC restart",     // 6
+				    "???"               // 7
+    };
+     FILE *log_fp = parser->lf->fp;
 
     fprintf(log_fp, "stat2: %02x ", stat2);
 
-    reset_status = (stat2 >> 4) & 0xf;
+    reset_status = (stat2 >> 4) & 0x7;
 
-    switch(reset_status) {
-
-    case 0:
-	reset_status_str = "Cleared";
-	break;
-    case 3:
-	reset_status_str = "SYS_RESET";
-	break;
-
-    default:
-	fprintf(log_fp, "unknown reset status: %x\n", reset_status);
-		exit(1);
-    }
-
-    fprintf(log_fp, "reset_status: %x (%s) ", reset_status, reset_status_str);
+    fprintf(log_fp, "reset_status: %x (%s) ", reset_status, reset_status_str[reset_status] );
 
     chip_mode = (stat2 >> 1) & 0x7;
 
@@ -327,7 +323,9 @@ static void parse_packet (parser_t *parser)
 	group = data->mosi[0];
     }
 
-    packet_count++;
+    if (show_time_stamps()) {
+	packet_count++;
+    }
 
 #if (HEX_DUMP_PACKETS > 0)
     fprintf(log_fp, "\nMOSI: ");
@@ -416,6 +414,11 @@ static parser_t my_parser =
      .sample_time_nsecs = SAMPLE_TIME_NSECS,
     };
 
+static void grab_uart_output (parser_t *parser)
+{
+    parser_redirect_output("uart", parser->lf);
+}
+
 static parser_t n1_parser =
     {
      .name          = "lr1110_n1",
@@ -431,6 +434,7 @@ static parser_t n1_parser =
       */
      .sample_time_nsecs = SAMPLE_TIME_NSECS,
 
+     .post_connect = grab_uart_output,
     };
 
 static void CONSTRUCTOR init (void)

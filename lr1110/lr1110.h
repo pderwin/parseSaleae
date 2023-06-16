@@ -42,7 +42,7 @@ typedef struct lr1110_data_s {
 
     uint32_t count;
 
-#define NUMBER_BYTES (128)
+#define NUMBER_BYTES (1024)
 
     uint8_t  mosi[NUMBER_BYTES];
     uint8_t  miso[NUMBER_BYTES];

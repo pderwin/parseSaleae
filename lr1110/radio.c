@@ -28,8 +28,10 @@ enum {
       SET_LORA_SYNC_WORD          = 0x2b,
 };
 
-static packet_type_e packet_type    = PACKET_TYPE_NONE;
-static uint32_t      payload_length = 0;
+static packet_type_e
+   packet_type    = PACKET_TYPE_NONE;
+uint32_t
+   pld_len_in_bytes = 0;
 
 void lr1110_radio(parser_t *parser)
 {
@@ -88,6 +90,8 @@ void lr1110_radio(parser_t *parser)
 	checkPacketSize("GET_RX_BUFFER_STATUS (resp)", 3);
 
 	parse_stat1(miso[0]);
+
+	pld_len_in_bytes = miso[1];
 
 	fprintf(log_fp, "payload length: %d ", miso[1] );
 	fprintf(log_fp, "RX buffer start: %x ", miso[2] );
@@ -168,7 +172,7 @@ void lr1110_radio(parser_t *parser)
 	    fprintf(log_fp, "PbLength: %04x ",  (mosi[2] << 8) | mosi[3]);
 	    fprintf(log_fp, "HeaderType: %02x ",  mosi[4]);
 
-	    payload_length = mosi[5];
+	    pld_len_in_bytes = mosi[5];
 
 	    fprintf(log_fp, "PayloadLen: %02x ",  mosi[5]);
 	    fprintf(log_fp, "CRC: %02x ",  mosi[6]);

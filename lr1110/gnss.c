@@ -9,6 +9,7 @@
 enum {
       SET_CONSTELLATION        = 0x00,
       READ_CONSTELLATION       = 0x01,
+      READ_ALMANAC_UPDATE      = 0x03,
       SET_FREQ_SEARCH_SPACE    = 0x04,
       READ_FREQ_SEARCH_SPACE   = 0x05,
       SET_MODE                 = 0x08,
@@ -54,7 +55,8 @@ void lr1110_gnss(parser_t *parser)
 	count;
     uint32_t
 	cmd,
-	i;
+	i,
+	scan_time;
     float
 	latitude_f,
 	longitude_f;
@@ -73,7 +75,7 @@ void lr1110_gnss(parser_t *parser)
     switch (cmd) {
 
     case ALMANAC_FULL_UPDATE:
-	checkPacketSize("ALMANAC_FULL_UPDATE", 22);
+	checkPacketSize("ALMANAC_FULL_UPDATE", 0);
 	almanac_update(log_fp, &mosi[2]);
 	break;
 
@@ -209,14 +211,14 @@ void lr1110_gnss(parser_t *parser)
 
 	break;
 
-    case READ_CONSTELLATION:
-	checkPacketSize("READ_CONSTELLATION", 2);
-	set_pending_cmd(READ_CONSTELLATION);
+    case READ_ALMANAC_UPDATE:
+	checkPacketSize("READ_ALMANAC_UPDATE", 2);
+	set_pending_cmd(READ_ALMANAC_UPDATE);
 	break;
 
-    case RESPONSE(READ_CONSTELLATION):
+    case RESPONSE(READ_ALMANAC_UPDATE):
 
-	checkPacketSize("READ_CONSTELLATION(resp)", 2);
+	checkPacketSize("READ_ALMANAC_UPDATE(resp)", 2);
 
 	parse_stat1(miso[0]);
 
@@ -244,6 +246,21 @@ void lr1110_gnss(parser_t *parser)
 
 	break;
 
+    case READ_CONSTELLATION:
+	checkPacketSize("READ_CONSTELLATION", 2);
+	set_pending_cmd(READ_CONSTELLATION);
+	break;
+
+    case RESPONSE(READ_CONSTELLATION):
+
+	checkPacketSize("READ_CONSTELLATION(resp)", 2);
+
+	parse_stat1(miso[0]);
+
+	fprintf(log_fp, "constallation_bitmask: %x ", miso[1] );
+
+	break;
+
     case READ_RESULTS:
 	checkPacketSize("READ_RESULTS", 2);
 	set_pending_cmd(READ_RESULTS);
@@ -262,10 +279,20 @@ void lr1110_gnss(parser_t *parser)
 
     case SCAN_ASSISTED:
 	checkPacketSize("SCAN_ASSISTED", 9);
+
+	scan_time = get_32(&mosi[2]);
+
+	fprintf(log_fp, "time: %d (0x%x) ", scan_time, scan_time );
+	fprintf(log_fp, "effort: %d ", mosi[6]);
+	fprintf(log_fp, "result_mask: %d ", mosi[7]);
+	fprintf(log_fp, "nb_sv_max: %d ", mosi[8]);
 	break;
 
     case SET_ASSISTANCE_POS:
 	checkPacketSize("SET_ASSISTANCE_POS", 6);
+
+	fprintf(log_fp, "lat: %f ", to_latitude(&mosi[2]));
+	fprintf(log_fp, "long: %f", to_longitude(&mosi[4]));
 	break;
 
     case SET_FREQ_SEARCH_SPACE:
