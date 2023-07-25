@@ -403,5 +403,5 @@ static void CONSTRUCTOR init (void)
 {
     parser_register(&my_parser);
 
-    uart_init(0, "uart_txd", USE_115K_BAUD, 1);
+    uart_init(0, "uart_txd", USE_460K_BAUD, 1);
 }
