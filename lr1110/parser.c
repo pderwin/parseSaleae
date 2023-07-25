@@ -405,8 +405,6 @@ static signal_t signals_n1[] =
      { "n1_miso",  &lr1110_n1_data.sample.miso },
      { "n1_busy",  &lr1110_n1_data.sample.busy },
      { "n1_irq",   &lr1110_n1_data.sample.irq, .deglitch_nsecs = 150 },
-     { "GPIO_TX",  &lr1110_n1_data.sample.gpio_tx },
-     { "GPIO_RX",  &lr1110_n1_data.sample.gpio_rx },
      { NULL, NULL}
     };
 

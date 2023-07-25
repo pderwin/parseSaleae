@@ -27,7 +27,7 @@ enum {
       GET_SV_DETECTED          = 0x18,
       GET_CONSUMPTION          = 0x19,
       GET_SV_VISIBLE           = 0x1f,
-      UNKNOWN_0x20             = 0x20,
+      GET_SV_VISIBLE_DOPPLER   = 0x20,
 
       // not documented this way      GNSS_SCAN_AUTONOMOUS        = 0x0430,
 };
@@ -329,8 +329,8 @@ void lr1110_gnss(parser_t *parser)
 	fprintf(log_fp, "visible: %d ",  miso[1]);
 	break;
 
-    case UNKNOWN_0x20:
-	checkPacketSize("UNKNOWN_0x20", 2);
+    case GET_SV_VISIBLE_DOPPLER:
+	checkPacketSize("GET_SV_VISIBLE_DOPPLER", 2);
 	break;
 
     default:

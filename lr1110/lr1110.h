@@ -28,8 +28,6 @@ typedef struct {
     uint32_t miso;
     uint32_t busy;
     uint32_t irq;
-    uint32_t gpio_rx;
-    uint32_t gpio_tx;
 } sample_t;
 
 typedef struct lr1110_data_s {
@@ -81,4 +79,3 @@ void     _hex_dump(FILE *log_fp, uint8_t *cp, uint32_t count);
 void     _parse_stat1(parser_t *parser, uint8_t stat1);
 void     _parse_stat2(parser_t *parser, uint8_t stat2);
 void     _set_pending_cmd(parser_t *parser, uint32_t group, uint32_t cmd);
-void     lr1110_show_flags (parser_t *parser);
