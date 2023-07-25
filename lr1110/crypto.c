@@ -60,7 +60,7 @@ void lr1110_crypto(parser_t *parser)
     lr1110_data_t
 	*data = parser->data;
     FILE
-	*log_fp = parser->lf->fp;
+	*log_fp = parser->log_file->fp;
 
 
     mosi = data->mosi;
@@ -132,7 +132,7 @@ void lr1110_crypto(parser_t *parser)
 	break;
 
     default:
-	hdr(parser->lf, data->packet_start_time, "UNHANDLED_CRYPTO_CMD");
+	hdr(parser, data->packet_start_time, "UNHANDLED_CRYPTO_CMD");
 	fprintf(log_fp, "Unhandled CRYPTO command: %04x length: %d ZZZ: %x \n", cmd, data->count,  UNKNOWN_0x10);
 	exit(1);
     }

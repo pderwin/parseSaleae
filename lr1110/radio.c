@@ -28,6 +28,7 @@ enum {
       SET_LORA_SYNC_WORD          = 0x2b,
 };
 
+static void frequency_translate (FILE *log_fp, uint32_t freq);
 static packet_type_e
    packet_type    = PACKET_TYPE_NONE;
 uint32_t
@@ -40,12 +41,14 @@ void lr1110_radio(parser_t *parser)
 	*mosi;
     uint32_t
 	cmd,
-	freq,
 	timeout;
+    static uint32_t
+	rx_cnt = 0,
+	tx_cnt = 0;
     lr1110_data_t
 	*data = parser->data;
     FILE
-	*log_fp = parser->lf->fp;
+	*log_fp = parser->log_file->fp;
 
     mosi = data->mosi;
     miso = data->miso;
@@ -192,8 +195,7 @@ void lr1110_radio(parser_t *parser)
     case SET_RF_FREQUENCY:
 	checkPacketSize("SET_RF_FREQUENCY", 6);
 
-	freq = (mosi[2] << 24) | (mosi[3] << 16) | (mosi[4] << 8) | (mosi[5] << 0);
-	fprintf(log_fp, "Frequency: %04x (%d)",  freq, freq);
+	frequency_translate(log_fp, get_32(&mosi[2]));
 	break;
 
     case SET_RX:
@@ -201,7 +203,16 @@ void lr1110_radio(parser_t *parser)
 
 	timeout = (mosi[2] << 16) | (mosi[3] << 8) | mosi[4];
 
-	fprintf(log_fp, "timeout: 0x%x (%d)", timeout, timeout);
+	fprintf(log_fp, "timeout: 0x%x (%5.2f seconds) ", timeout, (timeout * 1.0) / 32768);
+
+	/*
+	 * How long after the TX_DONE irq are we?
+	 */
+	fprintf(log_fp, "Time since TX_DONE irq: " );
+	print_time_nsecs(log_fp, data->packet_start_time - data->tx_done_irq_rise_time);
+
+	fprintf(log_fp, "( rx_cnt: %d )", ++rx_cnt );
+
 	break;
 
     case SET_RX_BOOSTED:
@@ -215,6 +226,8 @@ void lr1110_radio(parser_t *parser)
 	timeout = (mosi[2] << 16) | (mosi[3] << 8) | mosi[4];
 
 	fprintf(log_fp, "timeout: 0x%x (%d)", timeout, timeout);
+
+	fprintf(log_fp, "( tx_cnt: %d )", ++tx_cnt );
 	break;
 
     case SET_TXCW:
@@ -233,9 +246,59 @@ void lr1110_radio(parser_t *parser)
 	break;
 
     default:
-	hdr(parser->lf, data->packet_start_time, "UNHANDLED_RADIO_CMD");
+	hdr(parser, data->packet_start_time, "UNHANDLED_RADIO_CMD");
 	fprintf(log_fp, "Unhandled RADIO command: %04x length: %d \n", cmd, data->count);
 	exit(1);
 
     }
+}
+
+typedef struct freq_entry_s {
+    uint32_t frequency;
+    uint8_t upLink;
+    uint8_t channel;
+} freq_entry_t;
+
+
+freq_entry_t freq_entries[] = {
+			       { 903900000, 1,  8 },
+			       { 904100000, 1,  9 },
+			       { 904300000, 1, 10 },
+			       { 904500000, 1, 11 },
+			       { 904700000, 1, 12 },
+			       { 904900000, 1, 13 },
+			       { 905100000, 1, 14 },
+			       { 905300000, 1, 15 },
+			       { 923300000, 0,  0 },
+			       { 923900000, 0,  1 },
+			       { 924500000, 0,  2 },
+			       { 925100000, 0,  3 },
+			       { 925700000, 0,  4 },
+			       { 926300000, 0,  5 },
+			       { 926900000, 0,  6 },
+			       { 927500000, 0,  7 } };
+
+#define ARRAY_SIZE(__x) ( sizeof(__x) / sizeof(__x[0]))
+
+static void frequency_translate (FILE *log_fp, uint32_t frequency)
+{
+    uint32_t
+	i;
+    freq_entry_t
+	*fe;
+
+    for (i=0, fe = freq_entries; i< ARRAY_SIZE(freq_entries); i++, fe++) {
+	if (fe->frequency == frequency) {
+	    fprintf(log_fp, " %d (%s channel %d) ", frequency, fe->upLink ? "UpLnk":"DnLnk", fe->channel);
+	    return;
+	}
+    }
+
+    /*
+     * Fatal erroe if here.
+     */
+    fprintf(stderr, "Invalid frequency: %d \n", frequency);
+    fprintf(log_fp, "Invalid frequency: %d \n", frequency);
+
+    exit(1);
 }

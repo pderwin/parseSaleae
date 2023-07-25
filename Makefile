@@ -3,8 +3,8 @@
 # dump_tags = -r
 
 csv_filename = ${HOME}/Downloads/digital_almanac_update.csv
-csv_filename = ${HOME}/Downloads/trace/digital.csv
 csv_filename = ${HOME}/Downloads/digital_reset_synch_wifi.csv
+csv_filename = ${HOME}/Downloads/trace/digital.csv
 
 
 # no_time_stamp = --no-time-stamp
@@ -26,3 +26,22 @@ uart2.gsv :  $(csv_dir)/$(fname).csv make_uart2.py Makefile
 
 gnss.lst: digital.lst Makefile
 	egrep -e GNSS -e "SET_TX " -e "WRITE_BUFFER_8" -e WIFI lr1110_semtech.log > $@
+
+GREP_ARGS = -e RADIO -e SYSTEM
+
+n1.log : lr1110_n1.log Makefile
+	egrep $(GREP_ARGS) $< > $@
+
+n1_ok.log : lr1110_n1_ok.log Makefile
+	egrep $(GREP_ARGS) $< > $@
+
+
+n1.tx.log : n1.log n1_ok.log
+	printf "\nn1: \n\n" >> $@
+	cat n1.log > $@
+	printf "\n\nn1_ok: \n\n" >> $@
+	cat n1_ok.log >> $@
+
+joins.lst : ${HOME}/Downloads/trace/joins.csv
+	./parseSaleae $<
+	cp lr1110_n1.log $@

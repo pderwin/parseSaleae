@@ -63,7 +63,7 @@ void lr1110_gnss(parser_t *parser)
     static uint32_t
 	payload_length  = 0;
     FILE
-	*log_fp = parser->lf->fp;
+	*log_fp = parser->log_file->fp;
     lr1110_data_t
 	*data = parser->data;
 
@@ -334,7 +334,7 @@ void lr1110_gnss(parser_t *parser)
 	break;
 
     default:
-	hdr(parser->lf, data->packet_start_time, "UNHANDLED_GNSS_CMD");
+	hdr(parser, data->packet_start_time, "UNHANDLED_GNSS_CMD");
 	fprintf(log_fp, "Unhandled GNSS command: %04x length: %d \n", cmd, data->count);
 	exit(1);
     }

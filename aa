@@ -26,4 +26,6 @@ fi
 
 make --quiet
 
+# make joins.lst
+
 date

@@ -32,7 +32,7 @@ static lr1110_data_t
 #define rising_edge(__elem)  (data->sample.__elem == 1) && (data->last_sample.__elem == 0)
 
 
-static uint32_t     packet_count = 0;
+static uint32_t packet_count = 0;
 
 static void parse_packet (parser_t *parser);
 
@@ -63,6 +63,7 @@ void _hex_dump(FILE *log_fp, uint8_t *cp, uint32_t count)
 static void process_frame (parser_t *parser, frame_t *frame)
 {
     lr1110_data_t *data;
+    DECLARE_LOG_FP;
 
     data = parser->data;
 
@@ -80,9 +81,9 @@ static void process_frame (parser_t *parser, frame_t *frame)
 	 *
 	 * This currently fails when we are exiting sleep
 	 */
-	if (data->sample.busy) {
-	    hdr(parser->lf, frame->time_nsecs, "NSS_ERROR");
-	    fprintf(parser->lf->fp, "ERROR: nss dropped while device was busy\n");
+	if (data->sample.busy && !data->last_command_was_sleep) {
+	    hdr(parser, frame->time_nsecs, "NSS_ERROR");
+	    fprintf(log_fp, "ERROR: nss dropped while device was busy\n");
 	    //	    exit(1);
 	}
     }
@@ -91,24 +92,32 @@ static void process_frame (parser_t *parser, frame_t *frame)
      * If done with a packet, then parse it.
      */
     if (rising_edge(nss)) {
+
+	/*
+	 * Will be turned back on if we truly parse a sleep command.
+	 */
+	data->last_command_was_sleep = 0;
+
 	parse_packet(parser);
 	memcpy(&data->last_sample, &data->sample, sizeof(sample_t));
 	return;
     }
 
     if (rising_edge(irq)) {
-	hdr(parser->lf, frame->time_nsecs, "*** IRQ rise ***");
-	fprintf(parser->lf->fp, "\n");
+	hdr(parser, frame->time_nsecs, "*** IRQ rise ***");
+	fprintf(log_fp, "\n");
+
+	data->irq_rise_time = frame->time_nsecs;
     }
 
     if (falling_edge(irq)) {
-	hdr(parser->lf, frame->time_nsecs, "*** IRQ fall ***");
-	fprintf(parser->lf->fp, "\n");
+	hdr(parser, frame->time_nsecs, "*** IRQ fall ***");
+	fprintf(log_fp, "\n");
     }
 #if 0
     if (falling_edge(busy)) {
-	hdr(my_parser.lf, frame->time_nsecs, "*** BUSY fall ***");
-	fprintf(my_parser.lf->fp, "\n");
+	hdr(parser, frame->time_nsecs, "*** BUSY fall ***");
+	fprintf(log_fp, "\n");
     }
 #endif
 
@@ -132,7 +141,7 @@ static void process_frame (parser_t *parser, frame_t *frame)
 #endif
 
 		if (data->count == NUMBER_BYTES) {
-		    fprintf(parser->lf->fp, "ERROR: miso/mosi buffer overrun\n");
+		    fprintf(log_fp, "ERROR: miso/mosi buffer overrun\n");
 		    exit(1);
 		}
 
@@ -152,17 +161,18 @@ static void process_frame (parser_t *parser, frame_t *frame)
 void _checkPacketSize(parser_t *parser, char *group_str, char *str, uint32_t size, uint32_t cmd)
 {
     lr1110_data_t *data = parser->data;
+    DECLARE_LOG_FP;
 
-    hdr_with_lineno(parser->lf, data->packet_start_time, group_str, str, packet_count);
+    hdr_with_lineno(parser, data->packet_start_time, group_str, str, packet_count);
 
     if (size) {
 	if (data->count != size) {
-	    fprintf(parser->lf->fp, "<Length error.  Expected: %d bytes, got: %d > ", size, data->count);
-	    exit(1);
+	    fprintf(log_fp, "<Length error.  Expected: %d bytes, got: %d > ", size, data->count);
+	    //	    exit(1);
 	}
     }
 
-    fprintf(parser->lf->fp, "%04x | ", cmd & 0xffff);
+    fprintf(log_fp, "%04x | ", cmd & 0xffff);
 }
 
 uint32_t get_command (lr1110_data_t *data)
@@ -212,7 +222,7 @@ uint32_t get_32(uint8_t *mosi)
 void _set_pending_cmd(parser_t *parser, uint32_t group, uint32_t cmd)
 {
     lr1110_data_t *data = parser->data;
-    FILE *log_fp = parser->lf->fp;
+    FILE *log_fp = parser->log_file->fp;
 
     if (data->pending_cmd) {
 	fprintf(log_fp, "<Pending Command Error.  pending: %x cmd: %x > ", data->pending_cmd, cmd);
@@ -225,7 +235,7 @@ void _set_pending_cmd(parser_t *parser, uint32_t group, uint32_t cmd)
 
 void _parse_stat1(parser_t *parser, uint8_t stat1)
 {
-    FILE *log_fp = parser->lf->fp;
+    FILE *log_fp = parser->log_file->fp;
 
     char *cmd_str[] = {
 		       "CMD_FAIL",
@@ -274,7 +284,7 @@ void _parse_stat2(parser_t *parser, uint8_t stat2)
 				    "RTC restart",     // 6
 				    "???"               // 7
     };
-     FILE *log_fp = parser->lf->fp;
+    FILE *log_fp = parser->log_file->fp;
 
     fprintf(log_fp, "stat2: %02x ", stat2);
 
@@ -310,7 +320,7 @@ static void parse_packet (parser_t *parser)
     FILE *log_fp;
     lr1110_data_t *data = parser->data;
 
-    log_fp = parser->lf->fp;
+    log_fp = parser->log_file->fp;
 
     if (data->count < 2) {
 	return;
@@ -368,8 +378,9 @@ static void parse_packet (parser_t *parser)
 	break;
 
     default:
-	fprintf(log_fp, "unknown command group: %x \n", group);
-	exit(1);
+	fprintf(log_fp, "%s: unknown command group: %x \n", __func__, group);
+	fprintf(stderr, "%s: unknown command group: %x \n", __func__, group);
+	//	exit(1);
     }
 
 fprintf(log_fp, "\n");
@@ -388,12 +399,14 @@ static signal_t signals_semtech[] =
 
 static signal_t signals_n1[] =
     {
-     { "n1_nss",  &lr1110_n1_data.sample.nss, .deglitch_nsecs = 50 },
-     { "n1_clk",  &lr1110_n1_data.sample.clk, .deglitch_nsecs = 50 },
-     { "n1_mosi", &lr1110_n1_data.sample.mosi },
-     { "n1_miso", &lr1110_n1_data.sample.miso },
-     { "n1_busy", &lr1110_n1_data.sample.busy },
-     { "n1_irq",  &lr1110_n1_data.sample.irq, .deglitch_nsecs = 150 },
+     { "n1_nss",   &lr1110_n1_data.sample.nss, .deglitch_nsecs = 50 },
+     { "n1_clk",   &lr1110_n1_data.sample.clk, .deglitch_nsecs = 50 },
+     { "n1_mosi",  &lr1110_n1_data.sample.mosi },
+     { "n1_miso",  &lr1110_n1_data.sample.miso },
+     { "n1_busy",  &lr1110_n1_data.sample.busy },
+     { "n1_irq",   &lr1110_n1_data.sample.irq, .deglitch_nsecs = 150 },
+     { "GPIO_TX",  &lr1110_n1_data.sample.gpio_tx },
+     { "GPIO_RX",  &lr1110_n1_data.sample.gpio_rx },
      { NULL, NULL}
     };
 
@@ -403,7 +416,7 @@ static parser_t my_parser =
      .name          = "lr1110_semtech",
      .signals       = signals_semtech,
      .process_frame = process_frame,
-     .log_file      = "lr1110_semtech.log",
+     .log_file_name = "lr1110_semtech.log",
 
      .data          = &lr1110_semtech_data,
 
@@ -416,7 +429,7 @@ static parser_t my_parser =
 
 static void grab_uart_output (parser_t *parser)
 {
-    parser_redirect_output("uart", parser->lf);
+    parser_redirect_output("uart", parser->log_file);
 }
 
 static parser_t n1_parser =
@@ -424,7 +437,7 @@ static parser_t n1_parser =
      .name          = "lr1110_n1",
      .signals       = signals_n1,
      .process_frame = process_frame,
-     .log_file      = "lr1110_n1.log",
+     .log_file_name = "lr1110_n1.log",
 
      .data          = &lr1110_n1_data,
 
@@ -435,6 +448,7 @@ static parser_t n1_parser =
      .sample_time_nsecs = SAMPLE_TIME_NSECS,
 
      .post_connect = grab_uart_output,
+
     };
 
 static void CONSTRUCTOR init (void)

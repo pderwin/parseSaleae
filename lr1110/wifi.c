@@ -23,8 +23,7 @@ void lr1110_wifi(parser_t *parser)
     uint32_t
 	cmd,
 	result_size;
-    FILE
-	*log_fp = parser->lf->fp;
+    DECLARE_LOG_FP;
     lr1110_data_t
 	*data = parser->data;
     static uint32_t
@@ -96,7 +95,7 @@ void lr1110_wifi(parser_t *parser)
 
 
     default:
-	hdr(parser->lf, data->packet_start_time, "UNHANDLED_WIFI_CMD");
+	hdr(parser, data->packet_start_time, "UNHANDLED_WIFI_CMD");
 	fprintf(log_fp, "Unhandled WIFI command: %04x length: %d \n", cmd, data->count);
 	exit(1);
     }

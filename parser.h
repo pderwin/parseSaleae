@@ -15,8 +15,8 @@ struct parser_s {
 
     signal_t *signals;
 
-    char       *log_file;
-    log_file_t *lf;
+    char       *log_file_name;
+    log_file_t *log_file;
 
     uint32_t sample_time_nsecs;
 
@@ -24,6 +24,11 @@ struct parser_s {
 
     parser_t *next;
 };
+
+/*
+ * declaration of a log_fp local variable
+ */
+#define DECLARE_LOG_FP   FILE *log_fp = parser->log_file->fp
 
 void parser_connect        (void);
 void parser_post_connect   (void);

@@ -37,7 +37,7 @@ enum {
 };
 
 static void parse_errors(FILE *log_fp, uint16_t errors);
-static void parse_irq(FILE *log_fp, uint8_t *miso);
+static void parse_irq   (parser_t *parser, uint8_t *miso);
 
 extern uint32_t pld_len_in_bytes;
 
@@ -53,7 +53,7 @@ void lr1110_system(parser_t *parser)
 	last_time_secs = 0;
     uint8_t  *mosi;
     uint8_t  *miso;
-    FILE     *log_fp = parser->lf->fp;
+    FILE     *log_fp = parser->log_file->fp;
     lr1110_data_t *data = parser->data;
 
     mosi = data->mosi;
@@ -66,7 +66,7 @@ void lr1110_system(parser_t *parser)
     case CALIBRATE:
 	checkPacketSize("CALIBRATE", 3);
 
-	fprintf(parser->lf->fp, "params: %08x", mosi[2]);
+	fprintf(log_fp, "params: %08x", mosi[2]);
 	break;
 
 
@@ -77,7 +77,7 @@ void lr1110_system(parser_t *parser)
     case CLEAR_IRQ:
 	checkPacketSize("CLEAR_IRQ", 6);
 
-	parse_irq(log_fp, &mosi[2]);
+	parse_irq(parser, &mosi[2]);
 
 	break;
 
@@ -166,7 +166,7 @@ void lr1110_system(parser_t *parser)
 	parse_stat1(miso[0]);
 	parse_stat2(miso[1]);
 
-	parse_irq(log_fp, &miso[2]);
+	parse_irq(parser, &miso[2]);
 	break;
 
     case GET_TEMP:
@@ -226,7 +226,7 @@ void lr1110_system(parser_t *parser)
 	 */
 	if (mosi[3] != pld_len_in_bytes) {
 	    fprintf(log_fp, "ERROR: read length not equal to length from RX_BUFFER_STATUS command: m: %d p: %d ", mosi[3], pld_len_in_bytes);
-	    exit(1);
+	    //	    exit(1);
 	}
 
 	fprintf(log_fp, "offset: %x length: %d ", mosi[2], mosi[3] );
@@ -237,7 +237,7 @@ void lr1110_system(parser_t *parser)
 	/*
 	 * A stat1 is returned as the first byte of data, so add 1.
 	 */
-	checkPacketSize("SYS_READ_BUFFER_8 (resp)", pld_len_in_bytes + 1);
+	checkPacketSize("READ_BUFFER_8 (resp)", pld_len_in_bytes + 1);
 
 	parse_stat1(miso[0]);
 
@@ -286,8 +286,11 @@ void lr1110_system(parser_t *parser)
     case SET_DIO_IRQ_PARAMS:
 	checkPacketSize("SET_DIO_IRQ_PARAMS", 10);
 
-	fprintf(log_fp, "IRQ1: %02x%02x%02x%02x, ", mosi[2], mosi[3], mosi[4], mosi[5]);
-	fprintf(log_fp, "IRQ2: %02x%02x%02x%02x",   mosi[6], mosi[7], mosi[8], mosi[9]);
+	fprintf(log_fp, "IRQ1: ");
+	parse_irq(parser, &mosi[2]);
+
+	fprintf(log_fp, "IRQ2: ");
+	parse_irq(parser, &mosi[6]);
 	break;
 
     case SET_REG_MODE:
@@ -300,6 +303,9 @@ void lr1110_system(parser_t *parser)
 	checkPacketSize("SET_SLEEP", 7);
 	fprintf(log_fp, "sleepConfig: %0x ", mosi[2]);
 	fprintf(log_fp, "time: %x", get_32(&mosi[3]) );
+
+	data->last_command_was_sleep = 1;
+
 	break;
 
     case SET_TCXO_MODE:
@@ -340,7 +346,7 @@ void lr1110_system(parser_t *parser)
 
 
     default:
-	hdr(parser->lf, data->packet_start_time, "UNHANDLED_SYSTEM_CMD");
+	hdr(parser, data->packet_start_time, "UNHANDLED_SYSTEM_CMD");
 	fprintf(log_fp, "Unhandled SYSTEM command: %04x length: %d \n", cmd, data->count);
 	exit(1);
     }
@@ -386,8 +392,10 @@ static void parse_errors(FILE *log_fp, uint16_t errors)
 }
 
 
+#define IRQ_TX_DONE           (2)
+#define IRQ_PREAMBLE_DETECTED (4)
 
-static void parse_irq(FILE *log_fp, uint8_t *miso)
+static void parse_irq(parser_t *parser, uint8_t *miso)
 {
     static char *irq_str[] = {
 			      "??? 0",             //  0
@@ -427,10 +435,25 @@ static void parse_irq(FILE *log_fp, uint8_t *miso)
 	i,
 	irq,
 	mask;
+    lr1110_data_t
+	*data = parser->data;
+    DECLARE_LOG_FP;
 
     irq = (miso[0] << 24) | (miso[1] << 16) | (miso[2] << 8) | miso[3];
 
     fprintf(log_fp, "irq: %08x ( ", irq);
+
+    /*
+     * If we have a TX_DONE interrupt, track the timestamp of the interrupt going active.
+     */
+    if ( irq & (1 << IRQ_TX_DONE)) {
+	data->tx_done_irq_rise_time = data->irq_rise_time;
+    }
+
+    if ( irq & (1 << IRQ_PREAMBLE_DETECTED)) {
+	fprintf(log_fp, "Preamble Detected after TX Done: ");
+	print_time_nsecs(log_fp, data->irq_rise_time - data->tx_done_irq_rise_time);
+    }
 
     for (i=0; (i < 32) && irq; i++) {
 

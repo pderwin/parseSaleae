@@ -28,6 +28,8 @@ typedef struct {
     uint32_t miso;
     uint32_t busy;
     uint32_t irq;
+    uint32_t gpio_rx;
+    uint32_t gpio_tx;
 } sample_t;
 
 typedef struct lr1110_data_s {
@@ -35,6 +37,13 @@ typedef struct lr1110_data_s {
     sample_t sample;
 
     time_nsecs_t packet_start_time;
+
+    time_nsecs_t irq_rise_time;
+
+    /*
+     * When did the TX_DONE irq get posted?
+     */
+    time_nsecs_t tx_done_irq_rise_time;
 
     uint32_t accumulated_bits;
     uint32_t accumulated_miso_byte;
@@ -49,6 +58,8 @@ typedef struct lr1110_data_s {
 
     uint32_t pending_cmd;
     uint32_t pending_group;
+
+    uint32_t last_command_was_sleep;
 
 } lr1110_data_t;
 
@@ -70,3 +81,4 @@ void     _hex_dump(FILE *log_fp, uint8_t *cp, uint32_t count);
 void     _parse_stat1(parser_t *parser, uint8_t stat1);
 void     _parse_stat2(parser_t *parser, uint8_t stat2);
 void     _set_pending_cmd(parser_t *parser, uint32_t group, uint32_t cmd);
+void     lr1110_show_flags (parser_t *parser);

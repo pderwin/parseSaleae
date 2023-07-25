@@ -29,7 +29,6 @@ typedef enum
 
 void addr2line              (unsigned int address);
 void addr2line_init         (char *elf_file);
-void bootloader_i2c         (uint32_t byte, uint32_t is_start, time_nsecs_t time_nsecs, uint32_t event_count);
 void csv_process_file       (FILE *fp);
 void csv_sample_time_nsecs  (uint32_t nsecs);
 

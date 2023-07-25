@@ -15,9 +15,9 @@
  * \returns
  *
  *****************************************************************************************************/
-void hdr(log_file_t *lf, time_nsecs_t time_nsecs, char *h)
+void hdr(parser_t *parser, time_nsecs_t time_nsecs, char *h)
 {
-    hdr_with_lineno(lf, time_nsecs, "", h, 0);
+    hdr_with_lineno(parser, time_nsecs, "", h, 0);
 }
 
 /**
@@ -30,10 +30,16 @@ void hdr(log_file_t *lf, time_nsecs_t time_nsecs, char *h)
  * \returns
  *
  *****************************************************************************************************/
-void hdr_with_lineno (log_file_t *lf, time_nsecs_t time_nsecs, char *group_str, char *h, unsigned int lineno)
+void hdr_with_lineno (parser_t *parser, time_nsecs_t time_nsecs, char *group_str, char *h, unsigned int lineno)
 {
-    FILE *fp = lf->fp;
-    time_nsecs_t last_time_nsecs = lf->time_nsecs;
+    FILE *log_fp;
+    log_file_t *log_file;
+    time_nsecs_t last_time_nsecs;
+
+    log_file = parser->log_file;
+
+    log_fp          = log_file->fp;
+    last_time_nsecs = log_file->time_nsecs;
 
     if (show_time_stamps()) {
 	/*
@@ -43,27 +49,27 @@ void hdr_with_lineno (log_file_t *lf, time_nsecs_t time_nsecs, char *group_str, 
 	    last_time_nsecs = time_nsecs;
 	}
 
-	print_time_nsecs(fp, time_nsecs);
-	fprintf(fp, "| ");
+	print_time_nsecs(log_fp, time_nsecs);
+	fprintf(log_fp, "| ");
 
-	print_time_nsecs(fp, time_nsecs - last_time_nsecs);
-	fprintf(fp, "| ");
+	print_time_nsecs(log_fp, time_nsecs - last_time_nsecs);
+	fprintf(log_fp, "| ");
 
 	/*
 	 * save for next call.
 	 */
-	lf->time_nsecs = time_nsecs;
+	log_file->time_nsecs = time_nsecs;
     }
 
-   fprintf(fp, "%-6.6s | %-25.25s | ", group_str, h);
+   fprintf(log_fp, "%-6.6s | %-25.25s | ", group_str, h);
 
    if (lineno) {
-       fprintf(fp, "%4d", lineno);
+       fprintf(log_fp, "%4d", lineno);
    }
    else {
-       fprintf(fp, "    ");
+       fprintf(log_fp, "    ");
    }
-   fprintf(fp, " | ");
+   fprintf(log_fp, " | ");
 }
 
 /**

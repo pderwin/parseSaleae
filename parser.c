@@ -54,8 +54,8 @@ void parser_connect (void)
 	}
 
 	if (parser->enable) {
-	    if (parser->log_file) {
-		parser->lf = log_file_create(parser->log_file);
+	    if (parser->log_file_name) {
+		parser->log_file = log_file_create(parser->log_file_name);
 	    }
 	    if (parser->sample_time_nsecs) {
 		csv_sample_time_nsecs(parser->sample_time_nsecs);
@@ -89,7 +89,7 @@ void parser_connect (void)
  * output:
  *
  *-------------------------------------------------------------------------*/
-void parser_redirect_output(char *parser_name, log_file_t *lf)
+void parser_redirect_output(char *parser_name, log_file_t *log_file)
 {
     parser_t
 	*parser;
@@ -102,10 +102,8 @@ void parser_redirect_output(char *parser_name, log_file_t *lf)
 	 * If we're still enabled, then maybe call the connect callback
 	 */
 	if (parser->enable && !strcmp(parser->name, parser_name)) {
-	    printf("GOT IT!\n");
-
-	    fprintf(parser->lf->fp, "Output being redirected\n");
-	    parser->lf = lf;
+	    fprintf(parser->log_file->fp, "Output being redirected\n");
+	    parser->log_file = log_file;
 
 	    return;
 	}
@@ -198,8 +196,6 @@ static void parser_connect_signals (parser_t *parser)
  *-------------------------------------------------------------------------*/
 void parser_dump (void)
 {
-    char
-	*log_file;
     parser_t
 	*parser;
     signal_t
@@ -212,9 +208,9 @@ void parser_dump (void)
 
     while(parser) {
 
-	log_file = parser->log_file ? parser->log_file : "";
 
-	printf("%-10.10s |     %d     | %-20.20s | ", parser->name, parser->enable, log_file);
+	printf("%-10.10s |     %d     | ",parser->name, parser->enable);
+	printf("%-20.20s | ", parser->log_file_name ? parser->log_file_name : "");
 
 	if (parser->signals) {
 	    signal = parser->signals;
