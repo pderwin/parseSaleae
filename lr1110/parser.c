@@ -83,7 +83,7 @@ static void process_frame (parser_t *parser, frame_t *frame)
 	 */
 	if (data->sample.busy && !data->last_command_was_sleep) {
 	    hdr(parser, frame->time_nsecs, "NSS_ERROR");
-	    fprintf(log_fp, "ERROR: nss dropped while device was busy\n");
+	    //	    fprintf(log_fp, "ERROR: nss dropped while device was busy\n");
 	    //	    exit(1);
 	}
     }
@@ -427,7 +427,8 @@ static parser_t my_parser =
 
 static void grab_uart_output (parser_t *parser)
 {
-    parser_redirect_output("uart", parser->log_file);
+    parser_redirect_output("uart_txd",     parser->log_file);
+    parser_redirect_output("uart_lbtrace", parser->log_file);
 }
 
 static parser_t n1_parser =

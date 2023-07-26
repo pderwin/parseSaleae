@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <trace.h>
+#include <zephyr/drivers/trace.h>
 #include "parseSaleae.h"
 #include "tag.h"
 
@@ -141,7 +141,7 @@ uint32_t tag_scan(uint32_t max_str_count, char *tag_strs[])
     FILE
 	*fp;
 
-    sprintf(tag_filename, "%s/trace.h", ZEPHYR_INCLUDES);
+    sprintf(tag_filename, "%s/zephyr/drivers/trace.h", ZEPHYR_INCLUDES);
 
     sprintf(buf, "grep TAG_ %s | grep -v define", tag_filename);
 

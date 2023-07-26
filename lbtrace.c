@@ -1,12 +1,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <trace.h>  // tag enumeration from Zephyr sources.
+#include <zephyr/drivers/trace.h>  // tag enumeration from Zephyr sources.
 #include "hdr.h"
 #include "parseSaleae.h"
 #include "tag.h"
 
-static void packet_dump (void);
+static void packet_dump (FILE *fp);
 
 static uint32_t     next_index;
 static uint32_t     packet_buffer[32];
@@ -21,12 +21,33 @@ static time_nsecs_t packet_buffer_start_time;
 static char         *tag_strs[NUMBER_TAG_STRINGS];
 static uint32_t      tag_strs_count;
 
-static uint32_t next (void);
-static uint32_t next_available (void);
-static void     parse_packet (void);
-#if (VERIFY)
-static void     verify_image (uint32_t address, uint32_t data);
-#endif
+/*-------------------------------------------------------------------------
+ *
+ * name:        next
+ *
+r
+ * description:
+ *
+ * input:
+ *
+ * output:
+ *
+ *-------------------------------------------------------------------------*/
+static uint32_t next (void)
+{
+    uint32_t
+	rc;
+
+    if (next_index == packet_buffer_count) {
+	fprintf(stderr, "Underrun parsing LBTRACE buffer\n");
+	exit(1);
+    }
+
+    rc = packet_buffer[next_index];
+    next_index++;
+
+    return rc;
+}
 
 /*-------------------------------------------------------------------------
  *
@@ -39,38 +60,25 @@ static void     verify_image (uint32_t address, uint32_t data);
  * output:
  *
  *-------------------------------------------------------------------------*/
-static void parse_packet (void)
+static void parse_packet (parser_t *parser)
 {
     uint32_t
-	address,
-	data,
-	length,
 	lineno,
 	lineno_tag,
 	magic,
 	ra,
 	tag,
 	val;
-    static uint32_t
-	total_given_to_DMA = 0;
-
-    /*
-     * If no data, then bail early.
-     */
-    if (packet_buffer_count == 0) {
-	return;
-    }
-
-    //    packet_dump();
+    DECLARE_LOG_FP;
 
     /*
      * The first item should be a magic word.
      */
     magic = next();
 
-    if (magic != TRACE_MAGIC) {
-	printf("Packet missing magic word: %x (TRACE_MAGIC: %x XOR: %08x) \n", magic, TRACE_MAGIC, magic ^ TRACE_MAGIC);
-	packet_dump();
+    if ((magic & 0xffffff) != TRACE_MAGIC) {
+	fprintf(log_fp, "Packet missing magic word: %x (TRACE_MAGIC: %x XOR: %08x) \n", magic, TRACE_MAGIC, magic ^ TRACE_MAGIC);
+	packet_dump(log_fp);
 	return;
     }
 
@@ -84,7 +92,7 @@ static void parse_packet (void)
     lineno = (lineno_tag >> 16) & 0xffff;
     tag    = (lineno_tag >>  0) & 0xffff;
 
-    hdr_with_lineno(stdout_lf, packet_buffer_start_time, "", "PARSER_LBTRACE", lineno);
+    hdr_with_lineno(parser, packet_buffer_start_time, "", "PARSER_LBTRACE", lineno);
 
     {
 	char
@@ -99,181 +107,15 @@ static void parse_packet (void)
 	    tag_str = tag_strs[tag - TAG_ZERO];
 	}
 
-	printf("%-20.20s | ", tag_str);
+	fprintf(log_fp, "%-20.20s | ", tag_str);
     }
 
     switch (tag) {
 
-    case TAG_DMA_AXI_DESCRIPTOR_SUBMIT:
-	printf("dma_axi: %x ", next());
-	printf("desc: %x ", next());
-	printf("desc->dest: %x ", next());
-	break;
-    case TAG_PIP_BAND_GOT:
-	printf("band: %x", next());
-	printf("address: %x", next());
-	break;
-
-    case TAG_PIP_DMA_DONE:
-	break;
-
-    case TAG_PIP_BAND_WAIT:
-	break;
-
-    case TAG_DESC_WRITE:
-	printf("dma_axi: %x ", next());
-	printf("desc: %x ", next());
-	printf("address: %x ", next());
-	printf("length: %d (dec) ", length = next());
-
-	total_given_to_DMA += length;
-	printf("total_given_to_DMA: %d (dec) ", total_given_to_DMA);
-
-	break;
-
-    case TAG_BAND_RESET:
-    case TAG_FT60X_DESC_WRITE:
-    case TAG_VIDEO_DMA_ISR:
-	break;
-
-    case TAG_VIDEO_DMA_ISR_DESC:
-	printf("desc: %x ", next());
-	printf("config: %x ", next());
-	printf("dest: %x ", next());
-	printf("length: %x ", next());
-	printf("next: %x ", next());
-	break;
-
-    case TAG_PAGE_DONE:
-	printf("**** PAGE_DONE: ");
-	printf("intr_status: %x ", next());
-	break;
-
-    case TAG_DMA_AXI_UPDATE_CHAIN:
-	printf("DMA_AXI_UPDATE_CHAIN: ");
-	printf("prev desc: %x ", next());
-	printf("desc: %x ", next());
-	break;
-
-    case TAG_PAGE_TOP_BOT:
-	printf("top: %d ", next());
-	printf("bot: %d ", next());
-	break;
-
-    case TAG_HEX_DUMP:
-	printf("addr: %x ", address = next());
-
-	while(next_available()) {
-	    printf("%08x ", data = next());
-
-	    //	    verify_image(address, data);
-
-	    address += 4;
-	}
-
-	break;
-
-   case TAG_VIDEO_VSYNC_WAIT:
-	printf("VIDEO_VSYNC_WAIT: ");
-	break;
-
-    case TAG_VIDEO_VSYNC_WAIT_DONE:
-	printf("*** VSYNC *** ");
-	break;
-
-
-    case TAG_VIDEO_DMA_ISR_BAND:
-	printf("band: %x ", next());
-	break;
-
-    case TAG_DMA_AXI_REG_DUMP:
-	printf("dma_axi: %x ", next());
-	printf("CFG: %x ", next());
-	printf("STATUS: %x ", next());
-	printf("INT_EN: %x ", next());
-	printf("INT_PEND: %x ", next());
-	printf("DESC_READ: %x ", next());
-	printf("XFER_LENGTH: %x ", next());
-	printf("XFER_ADDRESS: %x ", next());
-	break;
-   case TAG_BAND_POOL_GET_DONE:
-	printf("band_pool: %x ", next());
-	break;
-     case TAG_VIDEO_BAND_WAIT:
-	//	printf("band_pool: %x ", next());
-	break;
-     case TAG_VIDEO_BAND_GOT:
-	printf("band_pool: %x ", next());
-	break;
-    case TAG_BAND_POOL_GET_WAIT:
-	printf("band_pool: %x ", next());
-	printf("band_pool->count: %d ", next());
-	break;
-   case TAG_DMA_AXI_CONFIG:
-	printf("regs_base: %x ", next());
-	break;
-
-    case TAG_DMA_AXI_ISR:
-	printf("DMA_AXI_ISR: ");
-	printf("dma_axi: %x ", next());
-	printf("int_pend: %x ", next());
-	break;
-
-    case TAG_DMA_AXI_START:
-	printf("DMA_AXI_START: ");
-	printf("dma_axi: %x ", next());
-	printf("regs_base: %x ", next());
-	printf("desc: %x ", next());
-	break;
-
-   case TAG_BAND_CREATE:
-	printf("BAND_CREATE: ");
-	printf("band: %x ", next());
-	printf("address: %x ", next());
-	printf("width: %d (dec) ", next());
-	printf("height: %d (dec) ", next());
-	break;
-
-    case TAG_BAND_POOL_GET:
-	printf("pool: %x ", next());
-	printf("band: %x ", next());
-	printf("band_pool->count: %d ", next());
-	break;
-
-    case TAG_BAND_POOL_PUT:
-	printf("pool: %x ", next());
-	printf("band: %x ", next());
-	printf("band_pool->count: %d ", next());
-	break;
-
-    case TAG_FT60X_BAND_POOL:
-	printf("pool: %x ", next());
-	printf("scanline_width_bytes: %d ", next());
-	printf("height: %d ", next());
-	break;
-
-    case TAG_FT60X_ISR:
-	break;
-    case TAG_FT60X_ISR_BAND:
-	printf("band: %x ", next());
-	printf("address: %x ", next());
-	break;
-
-    case TAG_FT60X_VIDEO_START:
-	printf("scanline_width_pixels: %d ", next());
-	printf("height: %d ", next());
-	break;
-
-    case TAG_UART_CALLBACK:
-	printf("val: %x", next());
-	break;
-    case TAG_UART_FIFO_READ:
-	printf("val: %x", next());
-	break;
 
     case TAG_MISC:
 	val = next();
-	printf("val: 0x%x  %d", val, val);
+	fprintf(log_fp, "val: 0x%x  %d", val, val);
 	break;
 
     case TAG_TRIGGER:
@@ -287,73 +129,44 @@ static void parse_packet (void)
 	lookup(ra);
 	break;
 
-    case TAG_TICK:
+	/* ------ optional tags -------- */
+
+    case TAG_ARBITER_ENTER:
+	fprintf(log_fp, "ARBITER_ENTER");
+	break;
+    case TAG_ARBITER_SELECT:
+	fprintf(log_fp, "ARBITER_SELECT");
+	break;
+    case TAG_TASK_ENQUEUE:
+	fprintf(log_fp, "ENQUEUE");
+	break;
+    case TAG_SELECT_NEXT_ENTRY:
+	fprintf(log_fp, "SELECT_NEXT_ENTRY");
+	break;
+    case TAG_SELECTED:
+	fprintf(log_fp, "SELECTED");
+	break;
+    case TAG_DELAY_MS:
+	fprintf(log_fp, "DELAY_MS");
+	break;
+    case TAG_ALARM_IN_MS:
+	fprintf(log_fp, "ALARM_IN_MS");
 	break;
 
-   case TAG_PRINTHEAD_WAIT_HSYNC:
-	break;
-
-   case TAG_PRINTHEAD_WAIT_HSYNC_DONE:
-	printf("count: %d ", next());
-	break;
 
     default:
-	printf("Unparsed tag %x ", tag);
+	fprintf(log_fp, "Unparsed tag %x\n", tag);
 
 	tag -= TAG_ZERO;
 	if (tag < tag_strs_count) {
-	    printf("Appears to be: '%s'\n", tag_strs[tag]);
+	    fprintf(log_fp, "Appears to be: '%s'\n", tag_strs[tag]);
 	}
-	printf("\n");
+	fprintf(log_fp, "\n");
 
-	packet_dump();
+	packet_dump(log_fp);
     }
 }
 
-
-/*-------------------------------------------------------------------------
- *
- * name:        next
- *
- * description:
- *
- * input:
- *
- * output:
- *
- *-------------------------------------------------------------------------*/
-static uint32_t next (void)
-{
-    uint32_t retval = -1;
-
-
-    if (next_index < packet_buffer_count) {
-	retval = packet_buffer[next_index];
-	next_index++;
-    }
-    else {
-	printf("  ERROR: attempt to read past packet length\n");
-	fprintf(stderr, "  ERROR: attempt to read past packet length\n");
-    }
-
-    return retval;
-}
-
-/*-------------------------------------------------------------------------
- *
- * name:        next_available
- *
- * description: return whether data is available in buffer.
- *
- * input:
- *
- * output:
- *
- *-------------------------------------------------------------------------*/
-static uint32_t next_available (void)
-{
-    return next_index < packet_buffer_count ? 1 : 0;
-}
 
 /*-------------------------------------------------------------------------
  *
@@ -366,10 +179,12 @@ static uint32_t next_available (void)
  * output:
  *
  *-------------------------------------------------------------------------*/
-void lbtrace_packet_add_word(time_nsecs_t time_nsecs, uint32_t word)
+void lbtrace_packet_add_word(parser_t *parser, time_nsecs_t time_nsecs, uint32_t word)
 {
+    DECLARE_LOG_FP;
+
     if (packet_buffer_count >= sizeof(packet_buffer)) {
-	printf("Packet too long\n");
+	fprintf(log_fp, "Packet too long\n");
 	exit(1);
     }
 
@@ -380,7 +195,6 @@ void lbtrace_packet_add_word(time_nsecs_t time_nsecs, uint32_t word)
     packet_buffer[packet_buffer_count] = word;
     packet_buffer_count++;
 }
-
 
 /*-------------------------------------------------------------------------
  *
@@ -393,22 +207,20 @@ void lbtrace_packet_add_word(time_nsecs_t time_nsecs, uint32_t word)
  * output:
  *
  *-------------------------------------------------------------------------*/
-void lbtrace_packet_parse (void)
+void lbtrace_packet_parse (parser_t *parser)
 {
-    parse_packet();
+    DECLARE_LOG_FP;
+
+    parse_packet(parser);
+
+    fprintf(log_fp, "\n");
+
 
     /*
-     * If data left over, then parse error.
+     * Clear the packet buffer.
      */
-    if (next_index != packet_buffer_count) {
-	printf("\nERROR: %d word(s) left in buffer (pbc: %d ni: %d)\n", packet_buffer_count - next_index, packet_buffer_count, next_index);
-    }
-
-    /*
-     * empty the packet buffer
-     */
-    packet_buffer_count = 0;
     next_index          = 0;
+    packet_buffer_count = 0;
 }
 
 /*-------------------------------------------------------------------------
@@ -438,59 +250,14 @@ void lbtrace_tag_scan()
  * output:
  *
  *-------------------------------------------------------------------------*/
-static void packet_dump (void)
+static void packet_dump (FILE *log_fp)
 {
     uint32_t
 	i;
 
-    printf("\n\nPacket: \n");
+    fprintf(log_fp, "\n\nPacket: \n");
 
     for (i=0; i < packet_buffer_count; i++) {
-	printf("   %d = %x\n", i, packet_buffer[i]);
+	fprintf(log_fp, "   %d = %x\n", i, packet_buffer[i]);
     }
-
 }
-
-#if (VERIFY)
-/*-------------------------------------------------------------------------
- *
- * name:        verify_image
- *
- * description:
- *
- * input:
- *
- * output:
- *
- *-------------------------------------------------------------------------*/
-static void verify_image (uint32_t address, uint32_t data)
-{
-    static int  offset = 0;
-    static FILE *fp = NULL;
-    uint32_t exp;
-
-    if (fp == NULL) {
-	fp = fopen("/home/erwin/jake-v/tools/print_test/ff.4bpp", "r");
-
-	if (fp == NULL) {
-	    printf("Error opening ff.4bpp for input\n");
-	    exit(1);
-	}
-    }
-
-    /*
-     * read the next 4 bytes from the file.
-     */
-    if (fread(&exp, sizeof(uint32_t), 1, fp) != 1) {
-	printf("End of file reading verify file.\n");
-	exit(1);
-    }
-
-    if (exp != data) {
-	printf("\nVerify error at address: %x offset: %x got: %x exp: %x \n", address, offset, data, exp);
-	//	exit(1);
-    }
-
-    offset += 4;
-}
-#endif

@@ -21,19 +21,11 @@ typedef struct parser_s parser_t;
 
 
 
-typedef enum
-    {
-     USE_115K_BAUD,
-     USE_460K_BAUD
-    } use_baud_e;
-
 void addr2line              (unsigned int address);
 void addr2line_init         (char *elf_file);
 void csv_process_file       (FILE *fp);
 void csv_sample_time_nsecs  (uint32_t nsecs);
 
-void lbtrace_packet_add_word(time_nsecs_t time_nsecs, uint32_t word);
-void lbtrace_packet_parse   (void);
 void lbtrace_tag_scan       (void);
 
 void localtime_print        (FILE *fp);

@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <trace.h>
+#include <zephyr/drivers/trace.h>
 #include "hdr.h"
 #include "parseSaleae.h"
 #include "tag.h"

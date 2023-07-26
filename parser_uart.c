@@ -7,6 +7,11 @@
 #include "parseSaleae.h"
 #include "parser.h"
 
+enum {
+      USE_115K_BAUD,
+      USE_460K_BAUD
+};
+
 #define BIT_TIME_115 ( 1000000000 / 115200 )
 #define BIT_TIME_460 ( 1000000000 / 460800 )
 
@@ -121,8 +126,7 @@ static void uart_init(uint32_t which, char *name, uint32_t use_baud, uint32_t li
  * \returns
  *
  *****************************************************************************************************/
-void
-uart_accumulate (frame_t *frame, uart_t *uart)
+static void uart_accumulate (frame_t *frame, uart_t *uart)
 {
     unsigned int wire = sample.uart_txd;
 
@@ -365,7 +369,7 @@ static void line_buffer_add (parser_t *parser, uart_t *uart, time_nsecs_t time_n
 
 /*-------------------------------------------------------------------------
  *
- * name:        uart_process
+ * name:        process_frame
  *
  * description: process a single frame.
  *
@@ -374,8 +378,7 @@ static void line_buffer_add (parser_t *parser, uart_t *uart, time_nsecs_t time_n
  * output:
  *
  *-------------------------------------------------------------------------*/
-void
-process_frame (parser_t *parser, frame_t *frame)
+static void process_frame (parser_t *parser, frame_t *frame)
 {
     (void) parser;
 
@@ -392,7 +395,7 @@ static signal_t my_signals[] =
 
 static parser_t my_parser =
 {
-    .name              = "uart",
+    .name              = "uart_txd",
     .process_frame     = process_frame,
     .signals           = my_signals,
     .log_file_name     = "uart.log",
@@ -403,5 +406,8 @@ static void CONSTRUCTOR init (void)
 {
     parser_register(&my_parser);
 
-    uart_init(0, "uart_txd", USE_460K_BAUD, 1);
+    // #define USE_BAUD USE_115K_BAUD
+#define USE_BAUD USE_460K_BAUD
+
+    uart_init(0, "uart_txd", USE_BAUD, 1);
 }
