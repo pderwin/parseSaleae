@@ -29,7 +29,6 @@ void csv_sample_time_nsecs  (uint32_t nsecs);
 void lbtrace_tag_scan       (void);
 
 void localtime_print        (FILE *fp);
-void lookup                 (uint32_t address);
 void lookup_init            (char *filename);
 void packet_init            (void);
 void panel_i2c              (uint32_t byte, time_nsecs_t time_nsecs, uint32_t is_start);

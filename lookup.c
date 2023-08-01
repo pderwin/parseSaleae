@@ -1,16 +1,18 @@
 #include <string.h>
+#include "lookup.h"
 #include "parseSaleae.h"
 
 char *elf_filename;
 
 void
-   lookup (uint32_t address)
+lookup (parser_t *parser, uint32_t address)
 {
    char cmd[512];
    char *cp;
    char lookup[1024];
    unsigned int len;
    FILE *fp;
+   DECLARE_LOG_FP;
 
    if (elf_filename == NULL) {
        static uint32_t first = 1;
@@ -20,7 +22,7 @@ void
 	   first = 0;
 
 	   fprintf(stderr, "%s: ERROR: elf filename not specified\n", __func__);
-	   printf("%s: ERROR: elf filename not specified\n", __func__);
+	   fprintf(log_fp, "%s: ERROR: elf filename not specified\n", __func__);
        }
        return;
    }
@@ -40,19 +42,21 @@ void
 
    cp = strtok(lookup, " ");
    cp = strtok(NULL, " ");
-   printf("Line %s, ", cp);
+   fprintf(log_fp, "Line %s, ", cp);
 
    cp = strtok(NULL, "\"");
    cp = strtok(NULL, "\"");
+
+#define MAX_LEN 30
 
    if (cp) {
       len = strlen(cp);
 
-      if (len > 50) {
-	 cp += (len-50);
+      if (len > MAX_LEN) {
+	 cp += (len-MAX_LEN);
       }
 
-      printf ("%s", cp);
+      fprintf(log_fp, "%s", cp);
    }
 }
 

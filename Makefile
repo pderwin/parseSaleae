@@ -6,6 +6,8 @@ csv_filename = ${HOME}/Downloads/digital_almanac_update.csv
 csv_filename = ${HOME}/Downloads/digital_reset_synch_wifi.csv
 csv_filename = ${HOME}/Downloads/trace/digital.csv
 
+elf_filename = ${HOME}/signetik_030923/build/poky/nrf52840-lora-debug/tmp/deploy/images/nrf52840/n1-lora.elf
+elf = --elf=${elf_filename}
 
 # no_time_stamp = --no-time-stamp
 

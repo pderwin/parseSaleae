@@ -49,7 +49,9 @@ add_executable(parseSaleae
 	parser_uart.c
 	parser_uart_lbtrace.c
 	signal.c
-	tag.c )
+	tag.c
+	thread.c
+	)
 
 target_include_directories(parseSaleae PUBLIC . )
 target_include_directories(parseSaleae PUBLIC /home/erwin/libs )

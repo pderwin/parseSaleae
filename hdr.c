@@ -61,6 +61,7 @@ void hdr_with_lineno (parser_t *parser, time_nsecs_t time_nsecs, char *group_str
 	log_file->time_nsecs = time_nsecs;
     }
 
+   fprintf(log_fp, "%-10.10s | ", parser->name);
    fprintf(log_fp, "%-6.6s | %-25.25s | ", group_str, h);
 
    if (lineno) {

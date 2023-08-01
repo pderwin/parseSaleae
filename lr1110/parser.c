@@ -17,11 +17,6 @@
  */
 #define SAMPLE_TIME_NSECS (10)
 
-/*
- * Set the time for de-glitch
- */
-#define DEGLITCH_TIME (5 * SAMPLE_TIME_NSECS)
-
 static lr1110_data_t
     lr1110_semtech_data,
     lr1110_n1_data;
