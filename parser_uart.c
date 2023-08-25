@@ -24,12 +24,9 @@ enum {
 
 static parser_t my_parser;
 
-typedef struct {
-    uint32_t uart_txd;
-} sample_t;
+static signal_t
+   uart_txd = {  "uart_txd" };
 
-static sample_t last_sample;
-static sample_t sample;
 
 #define LINE_BUFFER_SIZE (128)
 
@@ -128,7 +125,7 @@ static void uart_init(uint32_t which, char *name, uint32_t use_baud, uint32_t li
  *****************************************************************************************************/
 static void uart_accumulate (frame_t *frame, uart_t *uart)
 {
-    unsigned int wire = sample.uart_txd;
+    unsigned int wire = uart_txd.val;
 
     if (uart->state != UART_STATE_INIT) {
 	//	printf("%lld:  state: %d wire: %d ba: %d \n", frame->time_nsecs, uart->state, wire, uart->bits_accumulated);
@@ -383,21 +380,15 @@ static void process_frame (parser_t *parser, frame_t *frame)
     (void) parser;
 
     uart_accumulate(frame, &uarts[0]);
-
-    memcpy(&last_sample, &sample, (sizeof sample));
 }
 
-static signal_t my_signals[] =
-{
-   { "uart_txd", &sample.uart_txd },
-   { NULL, NULL}
-};
+static signal_t *signals[] = { &uart_txd, NULL };
 
 static parser_t my_parser =
 {
     .name              = "uart_txd",
     .process_frame     = process_frame,
-    .signals           = my_signals,
+    .signals           = signals,
     .log_file_name     = "uart.log",
     .sample_time_nsecs = SAMPLE_TIME_NSECS
 };

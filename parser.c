@@ -6,11 +6,109 @@
 #include "parser.h"
 #include "signal.h"
 
+/*-------------------------------------------------------------------------
+ *
+ * Sequence of events:
+ *
+ *    1) parser_connect_signals -- Check for wire connections on all parsers
+ *          The parser will be enabled unless it has a signal list that is
+ *          not met.
+ *
+ *    2) open log files: for all enabled parsers, open their respective
+ *          log files.
+ *
+ *-------------------------------------------------------------------------*/
+
 static parser_t
     *first_parser,
     *last_parser;
 
-static void parser_connect_signals (parser_t *parser);
+/*-------------------------------------------------------------------------
+ *
+ * name:        connect_signals
+ *
+ * description: go through signal list and see if they are found or not.
+ *
+ * input:
+ *
+ * output:      enable - 0 - parser is not enabled.
+ *                       1 - parser is enabled.
+ *
+ *-------------------------------------------------------------------------*/
+static uint32_t connect_signals (parser_t *parser)
+{
+    int
+	signal_find_rc = 0;
+    signal_t
+	*signal,
+	**signal_pp;
+
+    signal_pp = parser->signals;
+
+    while(*signal_pp) {
+
+	signal = *signal_pp;
+
+	/*
+	 * always deposit the signal value into the _raw element.  We will deglitch
+	 * this data and place into the val_p in signal_deglitch().
+	 */
+	signal->_find_rc = csv_find_format(signal->name, &signal->_raw, signal->format);
+
+	signal_find_rc |= signal->_find_rc;
+
+	signal_pp++;
+    }
+
+    /*
+     * If there was an error finding the signals, the disable the parser.
+     */
+    if (signal_find_rc) {
+	parser->enable = 0;
+    }
+
+    /*
+     * If here, then the parser is enabled.  If it specified a sample time, then honor that.
+     */
+    else {
+	parser_enable(parser);
+    }
+
+    return parser->enable;
+}
+
+
+/*-------------------------------------------------------------------------
+ *
+ * name:        parser_active_count
+ *
+ * description:
+ *
+ * input:
+ *
+ * output:
+ *
+ *-------------------------------------------------------------------------*/
+uint32_t parser_active_count (void)
+{
+    uint32_t
+	active_count = 0;
+    parser_t
+	*parser;
+
+    parser = first_parser;
+
+    while (parser) {
+
+	if (parser->enable) {
+	    active_count++;
+	}
+
+	parser = parser->next;
+    }
+
+    return active_count;
+}
 
 /*-------------------------------------------------------------------------
  *
@@ -25,14 +123,13 @@ static void parser_connect_signals (parser_t *parser);
  *-------------------------------------------------------------------------*/
 void parser_connect (void)
 {
-    uint32_t
-	enabled_parser_count = 0;
     parser_t
 	*parser;
 
     parser = first_parser;
 
-    while(parser) {
+    while (parser) {
+
 
 	/*
 	 * Assume parser is enabled at first.
@@ -43,40 +140,48 @@ void parser_connect (void)
 	 * If a parser has a signal list, see if the signals are found.
 	 */
 	if (parser->signals) {
-	    parser_connect_signals(parser);
-	}
 
-	/*
-	 * If we're still enabled, then maybe call the connect callback
-	 */
-	if (parser->enable && parser->connect) {
-	    parser->enable = parser->connect();
-	}
-
-	if (parser->enable) {
-	    if (parser->log_file_name) {
-		parser->log_file = log_file_create(parser->log_file_name);
+	    /*
+	     * Try to connect to the signals, and when successful, call its connect callback.
+	     */
+	    if (connect_signals(parser)) {
+		if (parser->connect) {
+		    (parser->connect)(parser);
+		}
 	    }
-	    if (parser->sample_time_nsecs) {
-		csv_sample_time_nsecs(parser->sample_time_nsecs);
-	    }
-
-	    enabled_parser_count++;
 	}
 
 	parser = parser->next;
     }
+}
 
+/*-------------------------------------------------------------------------
+ *
+ * name:        parser_enable
+ *
+ * description:
+ *
+ * input:
+ *
+ * output:
+ *
+ *-------------------------------------------------------------------------*/
+void parser_enable (parser_t *parser)
+{
+    parser->enable = 1;
 
-    /*
-     * Verify at least one parser is enabled.
-     */
-    if (enabled_parser_count == 0) {
-	fprintf(stderr, "ERROR: No parsers enabled\n");
-	exit(1);
+    if (parser->log_file_name) {
+	parser->log_file = log_file_create(parser->log_file_name);
     }
 
+    /*
+     * If the parser wants to set the sample time, do that.
+     */
+    if (parser->sample_time_nsecs) {
+	csv_sample_time_nsecs(parser->sample_time_nsecs);
+    }
 }
+
 
 /*-------------------------------------------------------------------------
  *
@@ -118,7 +223,8 @@ void parser_redirect_output(char *parser_name, log_file_t *log_file)
  *
  * name:        parser_post_connect
  *
- * description: allow all parsers to connect to their frame elements.
+ * description: Call each parser which is going to run, before processing
+ *              any data.
  *
  * input:
  *
@@ -147,44 +253,6 @@ void parser_post_connect (void)
 
 /*-------------------------------------------------------------------------
  *
- * name:        parser_connect_signals
- *
- * description: go through signal list and see if they are found or not.
- *
- * input:
- *
- * output:
- *
- *-------------------------------------------------------------------------*/
-static void parser_connect_signals (parser_t *parser)
-{
-    int
-	signal_find_rc = 0;
-    signal_t
-	*signal;
-
-    signal = parser->signals;
-
-    while(signal->name) {
-
-	/*
-	 * always deposit the signal value into the _raw element.  We will deglitch
-	 * this data and place into the val_p in signal_deglitch().
-	 */
-	signal->_find_rc = csv_find_format(signal->name, &signal->_raw, signal->format);
-
-	signal_find_rc |= signal->_find_rc;
-
-	signal++;
-    }
-
-    if (signal_find_rc) {
-	parser->enable = 0;
-    }
-}
-
-/*-------------------------------------------------------------------------
- *
  * name:        parser_dump
  *
  * description:
@@ -199,28 +267,33 @@ void parser_dump (void)
     parser_t
 	*parser;
     signal_t
-	*signal;
+	*signal,
+	**signal_pp;
 
     parser = first_parser;
 
-    printf("\n\nParser     | enabled |    log file    | missing signals\n");
-    printf("-----------+-----------+----------------+------------\n");
+    printf("\n\nParser     | enabled |       log file       | missing signals\n");
+    printf("-----------+---------+----------------------+------------\n");
 
     while(parser) {
 
 
-	printf("%-10.10s |     %d     | ",parser->name, parser->enable);
+	printf("%-10.10s |    %d    | ",parser->name, parser->enable);
 	printf("%-20.20s | ", parser->log_file_name ? parser->log_file_name : "");
 
 	if (parser->signals) {
-	    signal = parser->signals;
 
-	    while(signal->name) {
+	    signal_pp = parser->signals;
+
+	    while(*signal_pp) {
+
+		signal = *signal_pp;
+
 		if (signal->_find_rc) {
 		    printf("%s ", signal->name);
 		}
 
-		signal++;
+		signal_pp++;
 	    }
 	} // while signals
 
@@ -273,7 +346,8 @@ void parser_process_frame (frame_t *frame)
 
     parser = first_parser;
 
-    while(parser) {
+    while (parser) {
+
 	if (parser->enable) {
 
 	    /*
@@ -281,12 +355,13 @@ void parser_process_frame (frame_t *frame)
 	     */
 	    signal_deglitch(parser, frame->time_nsecs);
 
-	    parser->process_frame(parser, frame);
+	    if (parser->process_frame) {
+		parser->process_frame(parser, frame);
+	    }
 	}
 
 	parser = parser->next;
     }
-
 }
 
 static void CONSTRUCTOR init(void)

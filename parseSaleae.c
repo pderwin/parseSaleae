@@ -22,7 +22,7 @@ int main(int argc, char *argv[])
     unsigned int
 	use_hex        = 0;
 
-    //   setbuf(stdout, NULL);
+    //    setbuf(stdout, NULL);
 
     printf("parseSaleae v1.0\n");
 

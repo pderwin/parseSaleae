@@ -7,13 +7,21 @@
 struct parser_s {
     char *name;
 
-    uint32_t (*connect)      (void);
+    /*
+     * called upon successful wiring of the signals.
+     */
+    uint32_t (*connect)      (parser_t *parser);
+
+    /*
+     * Called after all connects are complete.
+     */
     void     (*post_connect) (parser_t *parser);
+
     void     (*process_frame)(parser_t *parser, frame_t *frame);
 
     uint32_t enable;
 
-    signal_t *signals;
+    signal_t **signals;
 
     char       *log_file_name;
     log_file_t *log_file;
@@ -30,8 +38,11 @@ struct parser_s {
  */
 #define DECLARE_LOG_FP   FILE *log_fp = parser->log_file->fp
 
-void parser_connect        (void);
-void parser_post_connect   (void);
-void parser_process_frame  (frame_t *frame);
-void parser_redirect_output(char *parser_name, log_file_t *lf);
-void parser_register       (parser_t *parser);
+uint32_t parser_active_count     (void);
+void     parser_connect          (void);
+void     parser_enable           (parser_t *parser);
+void     parser_open_log_files   (void);
+void     parser_post_connect     (void);
+void     parser_process_frame    (frame_t *frame);
+void     parser_redirect_output  (char *parser_name, log_file_t *lf);
+void     parser_register         (parser_t *parser);

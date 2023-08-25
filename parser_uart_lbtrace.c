@@ -410,23 +410,24 @@ static void process_frame (parser_t *parser, frame_t *frame)
  * output:      1 - keep the parser enabled
  *
  *-------------------------------------------------------------------------*/
-static uint32_t connect (void)
+static uint32_t connect (parser_t *parser)
 {
+    (void) parser;
+
     lbtrace_tag_scan();
     return 1;
 }
 
-static signal_t my_signals[] =
-{
-   { "uart_lbtrace", &sample.uart_lbtrace },
-   { NULL, NULL}
-};
+static signal_t
+    uart_lbtrace = { "uart_lbtrace" };
+
+static signal_t *signals[] = { &uart_lbtrace, NULL };
 
 static parser_t my_parser =
 {
     .name              = "uart_lbtrace",
     .process_frame     = process_frame,
-    .signals           = my_signals,
+    .signals           = signals,
     .log_file_name     = "uart_lbtrace.log",
     .sample_time_nsecs = SAMPLE_TIME_NSECS,
     .connect           = connect,

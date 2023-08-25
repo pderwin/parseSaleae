@@ -63,8 +63,8 @@ void lr1110_crypto(parser_t *parser)
 	*log_fp = parser->log_file->fp;
 
 
-    mosi = data->mosi;
-    miso = data->miso;
+    mosi = data->mosi_array;
+    miso = data->miso_array;
 
     (void) miso;
 

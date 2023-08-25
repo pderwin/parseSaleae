@@ -89,7 +89,7 @@ static const char *task_type_strs[] = {
    "CAD_TO_RX",
    "GNSS_SNIFF",
    "WIFI_SNIFF",
-   "GNSS_RSSI",
+   "GNSS_",
    "WIFI_RSSI",
    "LBT",
    "USER",
@@ -125,6 +125,8 @@ static const char *radio_state_strs[] = {
 };
 #endif
 
+#define MAX_THREAD_NAME (32)
+
 /*-------------------------------------------------------------------------
  *
  * name:        parse_packet
@@ -138,14 +140,21 @@ static const char *radio_state_strs[] = {
  *-------------------------------------------------------------------------*/
 static void parse_packet (parser_t *parser)
 {
+    char
+	thread_name[ MAX_THREAD_NAME + 1 ];  // add 1 for NULL termination
     uint32_t
 	addr,
+	i,
+	*ip,
 	lineno,
 	lineno_tag,
 	magic,
 	ra,
 	tag,
 	val;
+    thread_t
+	*thread;
+
     DECLARE_LOG_FP;
 
     /*
@@ -195,6 +204,44 @@ static void parse_packet (parser_t *parser)
 	fprintf(log_fp, "val: 0x%x  %d", val, val);
 	break;
 
+    case TAG_SWAP_IN:
+	addr = next();
+
+	thread = thread_find(addr);
+
+	fprintf(log_fp, "addr: 0x%x -- %s", addr, thread->name);
+	break;
+
+    case TAG_THREAD_NAME:
+
+	/*
+	 * Get thread address
+	 */
+	addr = next();
+
+	/*
+	 * Accumulate the name -- 32 bytes
+	 */
+	ip = (uint32_t *) thread_name;
+
+	for (i=0; i<8; i++) {
+	    ip[i] = next();
+	}
+
+	/*
+	 * enforce a NULL termination
+	 */
+	thread_name[ MAX_THREAD_NAME ] = 0;
+
+	/*
+	 * Create the thread.
+	 */
+	thread_create(addr, thread_name);
+
+	fprintf(log_fp, "addr: 0x%x -- %s", addr, thread_name);
+
+	break;
+
     case TAG_TRIGGER:
 	printf("*** TRIGGER ***");
 	printf("from: %x", next());
@@ -208,18 +255,7 @@ static void parse_packet (parser_t *parser)
 
 	/* ------ optional tags -------- */
 
-    case TAG_ARBITER_SET_ALARM:
-	fprintf(log_fp, "timer_value: %d ", next());
-	fprintf(log_fp, "margin_delay: %d ", next());
-	break;
-
-    case TAG_BOARD_DELAY:
-	fprintf(log_fp, "board_delay_ms: %d ", next() );
-	fprintf(log_fp, "tcxo_delay_ms: %d ", next() );
-	fprintf(log_fp, "hal_get_board_delay_ms: %d ", next() );
-	fprintf(log_fp, "fine_tune_board_delay_ms: %d ", next() );
-	break;
-
+#if 0
     case TAG_CONFIGURE_RX_WINDOW:
 	fprintf(log_fp, "t_current_ms: %d ", next());
 	fprintf(log_fp, "talarm_ms: %d ", next());
@@ -227,13 +263,16 @@ static void parse_packet (parser_t *parser)
 	fprintf(log_fp, "delay_ms: %d ", next());
 	fprintf(log_fp, "tx_done_irq: %d ", next());
 	break;
+#endif
 
+#if 0
     case TAG_GPIO_ERROR:
 	ra = next();
 	fprintf(log_fp, "ra: %x  ", ra );
 
 	lookup(parser, ra);
 	break;
+#endif
 
     case TAG_RADIO_PLANNER_LAUNCH_CURRENT:
 	fprintf(log_fp, "id: %d ", next());
@@ -246,53 +285,6 @@ static void parse_packet (parser_t *parser)
     case TAG_RADIO_SET_RX:
 	fprintf(log_fp, "timeout: %d ", next());
 	from(parser);
-	break;
-
-    case TAG_RAL_SET_RX:
-	fprintf(log_fp, "timeout: %d ", next());
-	from(parser);
-	break;
-
-    case TAG_RX_LORA_LAUNCH:
-	fprintf(log_fp, "rx_timeout_in_ms: %d ", next());
-	from(parser);
-	break;
-
-    case TAG_RX_RADIO_START:
-	fprintf(log_fp, "rx_timeout_in_ms: %d ", next());
-	from(parser);
-	break;
-
-    case TAG_RX_START_TIME_OFFSET:
-	fprintf(log_fp, "data_rate: %d ", next());
-	fprintf(log_fp, "board_delay: %d ", next());
-	fprintf(log_fp, "rx_window_symb: %d ", next());
-	fprintf(log_fp, "rx_offset_ms: %d ", next());
-	break;
-
-    case TAG_RX_WINDOW_PARAMETERS:
-	fprintf(log_fp, "data_rate: %d ", next());
-	fprintf(log_fp, "delay_ms: %d ", next());
-	fprintf(log_fp, "symbols: %d ", next());
-	fprintf(log_fp, "timeout_symb: %d ", next());
-	fprintf(log_fp, "rx_timeout_ms: %d ", next());
-	break;
-
-    case TAG_RX_WINDOW_PARMS:
-	fprintf(log_fp, "MIN_RX_DURATION_MS: %d ", next());
-	fprintf(log_fp, "rx_done_incertitude: %d ", next());
-	break;
-
-    case TAG_RX_WINDOW_PARMS2:
-	fprintf(log_fp, "rx_timeout_symb_in_ms: %d ", next());
-	fprintf(log_fp, "rx_window_symb: %d ", next());
-	fprintf(log_fp, "t_symb_usec: %d ", next());
-	break;
-
-    case TAG_SYMBOL_DURATION:
-	fprintf(log_fp, "duration: %d ", next());
-	fprintf(log_fp, "sf: %d ", next());
-	fprintf(log_fp, "bw: %d ", next());
 	break;
 
     case TAG_SYS_CLOCK_START:
@@ -334,9 +326,27 @@ static void parse_packet (parser_t *parser)
 	fprintf(log_fp, "rx_offset: %d ", next());
 	break;
 
-    case TAG_CLOCK_SYNC:
-	now(log_fp);
-	fprintf(log_fp, "payload_count: %d", next());
+    case TAG_SET_TCXO:
+	from(parser);
+	break;
+
+    case TAG_SET_DIO_AS_RF:
+	from(parser);
+	break;
+
+    case TAG_SPI_CONTEXT_COMPLETE:
+	break;
+
+    case TAG_SPI_CONTEXT_CS_CONTROL:
+	fprintf(log_fp, "on: %d ", next());
+	fprintf(log_fp, "force_off: %d ", next());
+	break;
+
+    case TAG_NRFX_CLEAR_BITS:
+    case TAG_NRFX_SET_BITS:
+	fprintf(log_fp, "port: %x ", next());
+	fprintf(log_fp, "mask: %x ", next());
+	from(parser);
 	break;
 
     default:
@@ -349,6 +359,7 @@ static void parse_packet (parser_t *parser)
 	fprintf(log_fp, "\n");
 
 	packet_dump();
+	exit(1);
     }
 }
 
@@ -429,7 +440,7 @@ void lbtrace_packet_parse (parser_t *parser)
  * output:
  *
  *-------------------------------------------------------------------------*/
-void lbtrace_tag_scan()
+void lbtrace_tag_scan (void)
 {
     tag_strs_count = tag_scan(ARRAY_SIZE(tag_strs), tag_strs);
 }

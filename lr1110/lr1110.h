@@ -31,8 +31,14 @@ typedef struct {
 } sample_t;
 
 typedef struct lr1110_data_s {
-    sample_t last_sample;
-    sample_t sample;
+
+    signal_t
+       *busy,
+       *clk,
+       *irq,
+       *miso,
+       *mosi,
+       *nss;
 
     time_nsecs_t packet_start_time;
 
@@ -51,8 +57,8 @@ typedef struct lr1110_data_s {
 
 #define NUMBER_BYTES (1024)
 
-    uint8_t  mosi[NUMBER_BYTES];
-    uint8_t  miso[NUMBER_BYTES];
+    uint8_t  mosi_array[NUMBER_BYTES];
+    uint8_t  miso_array[NUMBER_BYTES];
 
     uint32_t pending_cmd;
     uint32_t pending_group;

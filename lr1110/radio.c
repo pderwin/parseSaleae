@@ -7,6 +7,7 @@
 #define MY_GROUP_STR "RADIO"
 
 enum {
+      RESET_STATS                 = 0x00,
       GET_STATS                   = 0x01,
       GET_PACKET_TYPE             = 0x02,
       GET_RX_BUFFER_STATUS        = 0x03,
@@ -15,6 +16,7 @@ enum {
       SET_RX                      = 0x09,
       SET_TX                      = 0x0a,
       SET_RF_FREQUENCY            = 0x0b,
+      AUTO_TX_RX                  = 0x0c,
       SET_PACKET_TYPE             = 0x0e,
       SET_MODULATION_PARAM        = 0x0f,
       SET_PACKET_PARAM            = 0x10,
@@ -50,12 +52,15 @@ void lr1110_radio(parser_t *parser)
     FILE
 	*log_fp = parser->log_file->fp;
 
-    mosi = data->mosi;
-    miso = data->miso;
+    mosi = data->mosi_array;
+    miso = data->miso_array;
 
     cmd = get_command(data);
 
     switch (cmd) {
+    case AUTO_TX_RX:
+	checkPacketSize("AUTO_TX_RX", 2);
+	break;
 
     case GET_PACKET_STATUS:
 	checkPacketSize("GET_PACKET_STATUS", 2);
@@ -129,6 +134,10 @@ void lr1110_radio(parser_t *parser)
 
 	hex_dump(mosi, 13);
 
+	break;
+
+    case RESET_STATS:
+	checkPacketSize("RESET STATS", 2);
 	break;
 
     case SET_LORA_SYNC_WORD:

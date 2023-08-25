@@ -56,8 +56,8 @@ void lr1110_system(parser_t *parser)
     FILE     *log_fp = parser->log_file->fp;
     lr1110_data_t *data = parser->data;
 
-    mosi = data->mosi;
-    miso = data->miso;
+    mosi = data->mosi_array;
+    miso = data->miso_array;
 
     cmd = get_command(data);
 

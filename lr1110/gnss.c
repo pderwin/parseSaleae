@@ -67,8 +67,8 @@ void lr1110_gnss(parser_t *parser)
     lr1110_data_t
 	*data = parser->data;
 
-    mosi = data->mosi;
-    miso = data->miso;
+    mosi = data->mosi_array;
+    miso = data->miso_array;
 
     cmd = get_command(data);
 

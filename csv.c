@@ -45,7 +45,8 @@ void
     csv_find_time("Time [s]", &frame.time_nsecs);
 
     /*
-     * Allow all parsers to connect to their respective CSV fields.
+     * allow all parsers to search for their signals and
+     * set their enable bits accordingly.
      */
     parser_connect();
 
@@ -54,6 +55,14 @@ void
      * the output from one parser to another ( LR1110 grabbing UART output )
      */
     parser_post_connect();
+
+    /*
+     * Verify we have at least one parser active
+     */
+    if (parser_active_count() == 0) {
+	fprintf(stderr, "ERROR: No parsers enabled\n");
+	exit(1);
+    }
 
     printf("CSV sample time: %d\n", sample_time_nsecs);
 

@@ -1,12 +1,13 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include "thread.h"
 
 #define NUMBER_THREADS (32)
 
 static thread_t threads[NUMBER_THREADS];
 
-thread_t *thread_alloc (uint32_t address)
+static thread_t *_thread_alloc (uint32_t address)
 {
     uint32_t i;
     thread_t *tp;
@@ -31,6 +32,21 @@ thread_t *thread_alloc (uint32_t address)
     return NULL;
 }
 
+thread_t *thread_create (uint32_t address, char *name)
+{
+    thread_t
+	*thread;
+
+    /*
+     * either find existing thread, or allocate a new one.
+     */
+    thread = thread_find(address);
+
+    thread->name = strdup(name);
+
+    return thread;
+}
+
 thread_t *thread_find (uint32_t address)
 {
     uint32_t i;
@@ -44,5 +60,5 @@ thread_t *thread_find (uint32_t address)
 	}
     }
 
-    return thread_alloc(address);
+    return _thread_alloc(address);
 }

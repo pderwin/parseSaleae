@@ -18,14 +18,13 @@
 #define SAMPLE_TIME_NSECS (10)
 
 static lr1110_data_t
-    lr1110_semtech_data,
+//    lr1110_semtech_data,
     lr1110_n1_data;
 
 #undef  falling_edge
-#define falling_edge(__elem) (data->sample.__elem == 0) && (data->last_sample.__elem == 1)
+#define falling_edge(__elem) (data->__elem->falling_edge)
 #undef  rising_edge
-#define rising_edge(__elem)  (data->sample.__elem == 1) && (data->last_sample.__elem == 0)
-
+#define rising_edge(__elem)  (data->__elem->rising_edge)
 
 static uint32_t packet_count = 0;
 
@@ -76,8 +75,9 @@ static void process_frame (parser_t *parser, frame_t *frame)
 	 *
 	 * This currently fails when we are exiting sleep
 	 */
-	if (data->sample.busy && !data->last_command_was_sleep) {
+	if (data->busy->val && !data->last_command_was_sleep) {
 	    hdr(parser, frame->time_nsecs, "NSS_ERROR");
+	    fprintf(log_fp, "\n");
 	    //	    fprintf(log_fp, "ERROR: nss dropped while device was busy\n");
 	    //	    exit(1);
 	}
@@ -94,7 +94,6 @@ static void process_frame (parser_t *parser, frame_t *frame)
 	data->last_command_was_sleep = 0;
 
 	parse_packet(parser);
-	memcpy(&data->last_sample, &data->sample, sizeof(sample_t));
 	return;
     }
 
@@ -121,10 +120,10 @@ static void process_frame (parser_t *parser, frame_t *frame)
      */
     if (rising_edge(clk)) {
 
-	if (data->sample.nss == 0) {
+	if (data->nss->val == 0) {
 
-	    data->accumulated_mosi_byte |= (data->sample.mosi << (7 - data->accumulated_bits));
-	    data->accumulated_miso_byte |= (data->sample.miso << (7 - data->accumulated_bits));
+	    data->accumulated_mosi_byte |= (data->mosi->val << (7 - data->accumulated_bits));
+	    data->accumulated_miso_byte |= (data->miso->val << (7 - data->accumulated_bits));
 
 	    data->accumulated_bits++;
 
@@ -140,8 +139,8 @@ static void process_frame (parser_t *parser, frame_t *frame)
 		    exit(1);
 		}
 
-		data->miso[data->count] = data->accumulated_miso_byte;
-		data->mosi[data->count] = data->accumulated_mosi_byte;
+		data->miso_array[data->count] = data->accumulated_miso_byte;
+		data->mosi_array[data->count] = data->accumulated_mosi_byte;
 
 		data->count++;
 
@@ -149,8 +148,6 @@ static void process_frame (parser_t *parser, frame_t *frame)
 	    }
 	}
     }
-
-    memcpy(&data->last_sample, &data->sample, sizeof(sample_t));
 }
 
 void _checkPacketSize(parser_t *parser, char *group_str, char *str, uint32_t size, uint32_t cmd)
@@ -181,7 +178,7 @@ uint32_t get_command (lr1110_data_t *data)
 	data->pending_group = 0;
     }
     else{
-	cmd = data->mosi[1];
+	cmd = data->mosi_array[1];
     }
 
     return cmd;
@@ -325,7 +322,7 @@ static void parse_packet (parser_t *parser)
 	group = data->pending_group;
     }
     else {
-	group = data->mosi[0];
+	group = data->mosi_array[0];
     }
 
     if (show_time_stamps()) {
@@ -334,10 +331,10 @@ static void parse_packet (parser_t *parser)
 
 #if (HEX_DUMP_PACKETS > 0)
     fprintf(log_fp, "\nMOSI: ");
-    hex_dump(data->mosi, data->count);
+    hex_dump(data->mosi_array, data->count);
 
     fprintf(log_fp, "\nMISO: ");
-    hex_dump(data->miso, data->count);
+    hex_dump(data->miso_array, data->count);
 
     fprintf(log_fp, "\n");
 #endif
@@ -381,29 +378,41 @@ static void parse_packet (parser_t *parser)
 fprintf(log_fp, "\n");
 }
 
+#if 0
 static signal_t signals_semtech[] =
     {
-     { "nss",  &lr1110_semtech_data.sample.nss, .deglitch_nsecs = 50 },
-     { "clk",  &lr1110_semtech_data.sample.clk, .deglitch_nsecs = 50 },
-     { "mosi", &lr1110_semtech_data.sample.miso },
-     { "miso", &lr1110_semtech_data.sample.mosi },
-     { "busy", &lr1110_semtech_data.sample.busy },
-     { "irq",  &lr1110_semtech_data.sample.irq, .deglitch_nsecs = 150 },
+     { "nss",  .deglitch_nsecs = 50 },
+     { "clk",  .deglitch_nsecs = 50 },
+     { "mosi" },
+     { "miso" },
+     { "busy" },
+     { "irq",  .deglitch_nsecs = 150 },
      { NULL, NULL}
     };
+#endif
 
-static signal_t signals_n1[] =
-    {
-     { "n1_nss",   &lr1110_n1_data.sample.nss, .deglitch_nsecs = 50 },
-     { "n1_clk",   &lr1110_n1_data.sample.clk, .deglitch_nsecs = 50 },
-     { "n1_mosi",  &lr1110_n1_data.sample.mosi },
-     { "n1_miso",  &lr1110_n1_data.sample.miso },
-     { "n1_busy",  &lr1110_n1_data.sample.busy },
-     { "n1_irq",   &lr1110_n1_data.sample.irq, .deglitch_nsecs = 150 },
-     { NULL, NULL}
+static signal_t
+    n1_nss  = { "n1_nss", .deglitch_nsecs = 50 },
+    n1_clk  = { "n1_clk", .deglitch_nsecs = 50 },
+    n1_mosi = { "n1_mosi" },
+    n1_miso = { "n1_miso" },
+    n1_busy = { "n1_busy" },
+    n1_irq  = { "n1_irq",  .deglitch_nsecs = 150
     };
 
+static signal_t *signals_n1[] = {
+				&n1_nss,
+				&n1_clk,
+				&n1_mosi,
+				&n1_miso,
+				&n1_busy,
+				&n1_irq,
+				NULL
+};
 
+
+
+#if 0
 static parser_t my_parser =
     {
      .name          = "lr1110_semtech",
@@ -419,11 +428,30 @@ static parser_t my_parser =
       */
      .sample_time_nsecs = SAMPLE_TIME_NSECS,
     };
+#endif
 
 static void grab_uart_output (parser_t *parser)
 {
+    parser_redirect_output("lis3dh",       parser->log_file);
     parser_redirect_output("uart_txd",     parser->log_file);
     parser_redirect_output("uart_lbtrace", parser->log_file);
+}
+
+static uint32_t n1_connected (parser_t *parser)
+{
+    lr1110_data_t
+	*data;
+
+    data = parser->data;
+
+    data->nss  = &n1_nss;
+    data->clk  = &n1_clk;
+    data->mosi = &n1_mosi;
+    data->miso = &n1_miso;
+    data->busy = &n1_busy;
+    data->irq  = &n1_irq;
+
+    return 1;
 }
 
 static parser_t n1_parser =
@@ -441,12 +469,13 @@ static parser_t n1_parser =
       */
      .sample_time_nsecs = SAMPLE_TIME_NSECS,
 
+     .connect      = n1_connected,
      .post_connect = grab_uart_output,
 
     };
 
 static void CONSTRUCTOR init (void)
 {
-    parser_register(&my_parser);
+    //     parser_register(&my_parser);
     parser_register(&n1_parser);
 }

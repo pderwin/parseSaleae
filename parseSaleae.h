@@ -10,23 +10,12 @@
 
 #include "csv.h"
 
-/*
- * Used in pluggable parsers
- */
-#define falling_edge(__elem) (sample.__elem == 0) && (last_sample.__elem == 1)
-#define rising_edge(__elem)  (sample.__elem == 1) && (last_sample.__elem == 0)
-
-
 typedef struct parser_s parser_t;
-
-
 
 void addr2line              (unsigned int address);
 void addr2line_init         (char *elf_file);
 void csv_process_file       (FILE *fp);
 void csv_sample_time_nsecs  (uint32_t nsecs);
-
-void lbtrace_tag_scan       (void);
 
 void localtime_print        (FILE *fp);
 void lookup_init            (char *filename);
