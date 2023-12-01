@@ -21,12 +21,8 @@
 
 static parser_t my_parser;
 
-typedef struct {
-    uint32_t uart_lbtrace;
-} sample_t;
-
-static sample_t last_sample;
-static sample_t sample;
+static signal_t
+    uart_lbtrace = { "uart_lbtrace" };
 
 #define BUFFER_SIZE_BYTES (128)
 
@@ -107,7 +103,7 @@ static void uart_init(char *name)
  *****************************************************************************************************/
 static void uart_accumulate (parser_t *parser, frame_t *frame, uart_t *uart)
 {
-    unsigned int wire = sample.uart_lbtrace;
+    unsigned int wire = uart_lbtrace.val;
 
     switch (uart->state) {
 
@@ -123,7 +119,6 @@ static void uart_accumulate (parser_t *parser, frame_t *frame, uart_t *uart)
 	 */
     case UART_STATE_IDLE:
 	if (wire == 0) {
-
 
 	    /*
 	     * Track the start of this byte
@@ -395,8 +390,6 @@ static void check_for_packet(parser_t *parser)
 static void process_frame (parser_t *parser, frame_t *frame)
 {
     uart_accumulate(parser, frame, &uarts[0]);
-
-    memcpy(&last_sample, &sample, (sizeof sample));
 }
 
 /*-------------------------------------------------------------------------
@@ -417,9 +410,6 @@ static uint32_t connect (parser_t *parser)
     lbtrace_tag_scan();
     return 1;
 }
-
-static signal_t
-    uart_lbtrace = { "uart_lbtrace" };
 
 static signal_t *signals[] = { &uart_lbtrace, NULL };
 

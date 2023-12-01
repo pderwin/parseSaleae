@@ -1,4 +1,5 @@
 #include <stdio.h>
+
 #include <stdlib.h>
 #include <string.h>
 #include <zephyr/drivers/trace.h>  // tag enumeration from Zephyr sources.
@@ -282,11 +283,6 @@ static void parse_packet (parser_t *parser)
 	lookup(parser, addr);
 	break;
 
-    case TAG_RADIO_SET_RX:
-	fprintf(log_fp, "timeout: %d ", next());
-	from(parser);
-	break;
-
     case TAG_SYS_CLOCK_START:
 	break;
 
@@ -296,7 +292,7 @@ static void parse_packet (parser_t *parser)
 	fprintf(log_fp, "start_time_ms: %d ", next());
 	break;
 
-    case TAG_TASK_ENQUEUE:
+    case TAG_RADIO_PLANNER_TASK_ENQUEUE:
 	fprintf(log_fp, "\n\t\t\t");
 	fprintf(log_fp, "hook_id: %d\n\t\t\t", next());
 	fprintf(log_fp, "payload: %x\n\t\t\t", next());
@@ -307,6 +303,8 @@ static void parse_packet (parser_t *parser)
 	val = next();
 	fprintf(log_fp, "task->type: %d (%s)\n\t\t\t", val, task_type_strs[val] );
 	fprintf(log_fp, "task->start_time_ms: %d ", next());
+	fprintf(log_fp, "now: %d ", next());
+	from(parser);
 	break;
 
 
@@ -326,28 +324,65 @@ static void parse_packet (parser_t *parser)
 	fprintf(log_fp, "rx_offset: %d ", next());
 	break;
 
-    case TAG_SET_TCXO:
+    case TAG_PE4259_SELECT:
+	fprintf(log_fp, "select: ctrl: %d ", next());
+	fprintf(log_fp, "vdd: %d ", next());
+	break;
+
+    case TAG_MODEM_SUPERVISOR_ADD_TASK:
+	fprintf(log_fp, "id: %d  ", next());
+	fprintf(log_fp, "priority: %d  ", next());
+	fprintf(log_fp, "fport: %d  ", next());
+	break;
+
+    case TAG_MODEM_SUPERVISOR_ENGINE:
+	break;
+
+    case TAG_MODEM_SUPERVISOR_SCHEDULER:
+	break;
+   case TAG_MODEM_SUPERVISOR_SCHEDULER_NEXT:
+	fprintf(log_fp, "id: %d  ", next());
+	break;
+   case TAG_MODEM_SUPERVISOR_SCHEDULER_PAST:
+	fprintf(log_fp, "id: %d  ", next());
+	fprintf(log_fp, "id: %d  ", next());
+	break;
+
+   case TAG_MODEM_SUPERVISOR_LAUNCH_TASK:
+	fprintf(log_fp, "id: %d  ", next());
+	break;
+   case TAG_MODEM_SUPERVISOR_REMOVE_TASK:
+	fprintf(log_fp, "id: %d  ", next());
+	break;
+    case TAG_TRACKER_RUN_ENGINE:
+	break;
+    case TAG_TRACKER_SLEEP_TIME_MS:
+	fprintf(log_fp, "msec: %d  ", next());
+	break;
+    case TAG_TRACKER_SLEEP:
+	break;
+    case TAG_TRACKER_WAKE:
+	fprintf(log_fp, "airplane: %d  ", next());
+	break;
+   case TAG_SEMTRACKER_ACCEL:
+	fprintf(log_fp, "curr_time: %d  ", next());
+	fprintf(log_fp, "last_time: %d  ", next());
+	break;
+
+   case TAG_LR11XX_HAL_TIMER_START:
+	fprintf(log_fp, "mSec: %d  ", next());
+	fprintf(log_fp, "callback: %x  ", next());
+	fprintf(log_fp, "context: %x  ", next());
 	from(parser);
 	break;
 
-    case TAG_SET_DIO_AS_RF:
+   case TAG_SMTC_MODEM_HAL_START_TIMER:
+	fprintf(log_fp, "mSec: %d  ", next());
+	fprintf(log_fp, "callback: %x  ", next());
+	fprintf(log_fp, "context: %x  ", next());
 	from(parser);
 	break;
 
-    case TAG_SPI_CONTEXT_COMPLETE:
-	break;
-
-    case TAG_SPI_CONTEXT_CS_CONTROL:
-	fprintf(log_fp, "on: %d ", next());
-	fprintf(log_fp, "force_off: %d ", next());
-	break;
-
-    case TAG_NRFX_CLEAR_BITS:
-    case TAG_NRFX_SET_BITS:
-	fprintf(log_fp, "port: %x ", next());
-	fprintf(log_fp, "mask: %x ", next());
-	from(parser);
-	break;
 
     default:
 	fprintf(log_fp, "Unparsed tag %x\n", tag);
@@ -468,6 +503,7 @@ static void packet_dump (void)
     }
 }
 
+#if 1
 static void from (parser_t *parser)
 {
     uint32_t
@@ -479,6 +515,7 @@ static void from (parser_t *parser)
 
     lookup(parser, from_addr);
 }
+#endif
 
 static void now (FILE *log_fp)
 {

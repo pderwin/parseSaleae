@@ -146,12 +146,12 @@ void lr1110_wifi(parser_t *parser)
     case SCAN_TIME_LIMIT:
 	checkPacketSize("SCAN_TIME_LIMIT", 11);
 
-	fprintf(log_fp, "signal type: %x ",              miso[2]);
-	fprintf(log_fp, "chan_mask: %x ",       get_16( &miso[3]));
-	fprintf(log_fp, "acq_mode: %x ",                 miso[5]);
-	fprintf(log_fp, "nb_max: %x ",                   miso[6]);
-	fprintf(log_fp, "timeout_per_chan: %x ", get_16(&miso[7]));
-	fprintf(log_fp, "timeout_per_scan: %x", get_16(&miso[9]));
+	fprintf(log_fp, "signal type: %x ",              mosi[2]);
+	fprintf(log_fp, "chan_mask: %x ",        get_16( &mosi[3]));
+	fprintf(log_fp, "acq_mode: %x ",                 mosi[5]);
+	fprintf(log_fp, "nb_max: %x ",                   mosi[6]);
+	fprintf(log_fp, "timeout_per_chan: %d (mSec) ", get_16(&mosi[7]));
+	fprintf(log_fp, "timeout_per_scan: %d (mSec)",  get_16(&mosi[9]));
 	break;
 
     case CONFIGURE_TIMESTAMP_AP_PHONE:

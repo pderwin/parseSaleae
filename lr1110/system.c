@@ -278,7 +278,7 @@ void lr1110_system(parser_t *parser)
 	fprintf(log_fp, "RxCfg: %02x, ",   mosi[4]);
 	fprintf(log_fp, "TxCfg: %02x, ",   mosi[5]);
 	fprintf(log_fp, "TxHpCfg: %02x, ", mosi[6]);
-	fprintf(log_fp, "TxHCfg: %02x, ", mosi[6]);
+	// byte 7 RFU
 	fprintf(log_fp, "GnssCfg: %02x, ", mosi[8]);
 	fprintf(log_fp, "WifiCfg: %02x", mosi[9]);
 	break;
@@ -441,29 +441,34 @@ static void parse_irq(parser_t *parser, uint8_t *miso)
 
     irq = (miso[0] << 24) | (miso[1] << 16) | (miso[2] << 8) | miso[3];
 
-    fprintf(log_fp, "irq: %08x ( ", irq);
+    fprintf(log_fp, "irq: %08x ", irq);
 
-    /*
-     * If we have a TX_DONE interrupt, track the timestamp of the interrupt going active.
-     */
-    if ( irq & (1 << IRQ_TX_DONE)) {
-	data->tx_done_irq_rise_time = data->irq_rise_time;
-    }
+    if (irq) {
 
-    if ( irq & (1 << IRQ_PREAMBLE_DETECTED)) {
-	fprintf(log_fp, "Preamble Detected after TX Done: ");
-	print_time_nsecs(log_fp, data->irq_rise_time - data->tx_done_irq_rise_time);
-    }
+	fprintf(log_fp, "( ");
 
-    for (i=0; (i < 32) && irq; i++) {
-
-	mask = (1 << i);
-
-	if (irq & mask) {
-	    fprintf(log_fp, "%s ", irq_str[i]);
-	    irq &= ~mask;
+	/*
+	 * If we have a TX_DONE interrupt, track the timestamp of the interrupt going active.
+	 */
+	if ( irq & (1 << IRQ_TX_DONE)) {
+	    data->tx_done_irq_rise_time = data->irq_rise_time;
 	}
-    }
 
-    fprintf(log_fp, ") ");
+	if ( irq & (1 << IRQ_PREAMBLE_DETECTED)) {
+	    fprintf(log_fp, "Preamble Detected after TX Done: ");
+	    print_time_nsecs(log_fp, data->irq_rise_time - data->tx_done_irq_rise_time);
+	}
+
+	for (i=0; (i < 32) && irq; i++) {
+
+	    mask = (1 << i);
+
+	    if (irq & mask) {
+		fprintf(log_fp, "%s ", irq_str[i]);
+		irq &= ~mask;
+	    }
+	}
+
+	fprintf(log_fp, ") ");
+    }
 }

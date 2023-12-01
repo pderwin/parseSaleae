@@ -4,7 +4,7 @@ project(parseSaleae)
 
 # set(CMAKE_VERBOSE_MAKEFILE ON)
 
-set(ZEPHYR "/home/erwin/signetik_030923/source/zephyr" )
+set(ZEPHYR "/home/erwin/moko_081623/source/zephyr" )
 
 add_compile_options(-Wall -Werror -Wextra -Wno-missing-field-initializers)
 
@@ -65,7 +65,7 @@ target_include_directories(parseSaleae PUBLIC ${ZEPHYR}/include )
 # target_include_directories(parseSaleae PUBLIC /home/erwin/jake-v-firmware.041522/source/zephyr-jake-v/include/drivers)
 # target_include_directories(parseSaleae PUBLIC /home/erwin/jake-v-firmware.041522/build/zephyr/include/generated)
 
-add_compile_definitions(ZEPHYR_INCLUDES="/home/erwin/signetik_030923/source/zephyr/include" )
+add_compile_definitions(ZEPHYR_INCLUDES="${ZEPHYR}/include" )
 # add_compile_definitions(ZEPHYR_INCLUDES="/home/erwin/jake-v-firmware.041522/source/zephyr-jake-v/include" )
 
 find_library( CSV_LIBRARY NAMES csv PATHS   /home/erwin/libs )

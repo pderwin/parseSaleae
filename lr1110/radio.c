@@ -162,12 +162,21 @@ void lr1110_radio(parser_t *parser)
 	break;
 
     case SET_PA_CFG:
-	checkPacketSize("SET_PA_CFG", 6);
+	{
+	    uint32_t
+		pa_sel,
+		reg_pa_supply;
 
-	fprintf(log_fp, "PaSel: %02x, ",  mosi[2]);
-	fprintf(log_fp, "RegPaSupply: %02x, ",   mosi[3]);
-	fprintf(log_fp, "PaDutyCycle: %02x, ",   mosi[4]);
-	fprintf(log_fp, "PaHpSel: %02x",   mosi[5]);
+	    checkPacketSize("SET_PA_CFG", 6);
+
+	    pa_sel = mosi[2];
+	    fprintf(log_fp, "PaSel: %02x (%s) , ",  pa_sel, pa_sel ? "High":"Low");
+
+	    reg_pa_supply = mosi[3];
+	    fprintf(log_fp, "RegPaSupply: %02x (%s), ",   reg_pa_supply, reg_pa_supply ? "VBAT":"IntReg");
+	    fprintf(log_fp, "PaDutyCycle: %02x, ",   mosi[4]);
+	    fprintf(log_fp, "PaHpSel: %02x",   mosi[5]);
+	}
 	break;
 
     case SET_PACKET_PARAM:

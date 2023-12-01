@@ -728,10 +728,12 @@ static signal_t *signals[] = {
 			      &irq,
 			      NULL };
 
+#if (PRINT_SHADOW_REGS > 0)
 static void reg_shadow_print_null (void)
 {
     reg_shadow_print(stderr);
 }
+#endif
 
 static parser_t parser =
     {
@@ -756,5 +758,7 @@ static void CONSTRUCTOR init (void)
 {
     parser_register(&parser);
 
+#if (PRINT_SHADOW_REGS > 0)
     atexit(reg_shadow_print_null);
+#endif
 }

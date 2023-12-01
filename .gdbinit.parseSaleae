@@ -1,0 +1,2 @@
+run --elf=/home/erwin/signetik_030923/build/poky/nrf52840-lora-debug/tmp/deploy/images/nrf52840/n1-lora.elf /home/erwin/Downloads/trace/digital.csv
+
