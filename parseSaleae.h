@@ -27,6 +27,4 @@ void print_time_nsecs       (FILE *fp, time_nsecs_t time_nsecs);
 
 uint32_t show_time_stamps   (void);
 
-unsigned int verbose;
-
 #endif /* parseJtag_h */

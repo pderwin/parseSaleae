@@ -4,6 +4,12 @@
 
 # printf "\n\nCSV \n\n"
 make --quiet -C ~/libs/csv
+rc=$?
+
+if [ $rc -ne 0 ] ; then
+    set-title Error building libs/csv
+    exit 1;
+fi
 
 # printf "\n\nPARSE_LCD \n\n"
 # make --quiet RSYNC
@@ -24,7 +30,8 @@ if [ ! -r parseSaleae ] ; then
     ln -s build/parseSaleae
 fi
 
-make --quiet
+# make --quiet
+make
 
 # make joins.lst
 

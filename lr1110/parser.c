@@ -17,14 +17,21 @@
  */
 #define SAMPLE_TIME_NSECS (10)
 
-static lr1110_data_t
-//    lr1110_semtech_data,
-    lr1110_n1_data;
+static signal_t
+    nss  = { "lr1110_nss", .deglitch_nsecs = 50 },
+    clk  = { "lr1110_clk", .deglitch_nsecs = 50 },
+    mosi = { "lr1110_mosi" },
+    miso = { "lr1110_miso" },
+    busy = { "lr1110_busy" },
+    irq  = { "lr1110_irq",  .deglitch_nsecs = 150 },
+    rst  = { "lr1110_rst" }
+    ;
+
 
 #undef  falling_edge
-#define falling_edge(__elem) (data->__elem->falling_edge)
+#define falling_edge(__elem) (__elem.falling_edge)
 #undef  rising_edge
-#define rising_edge(__elem)  (data->__elem->rising_edge)
+#define rising_edge(__elem)  (__elem.rising_edge)
 
 static uint32_t packet_count = 0;
 
@@ -75,7 +82,7 @@ static void process_frame (parser_t *parser, frame_t *frame)
 	 *
 	 * This currently fails when we are exiting sleep
 	 */
-	if (data->busy->val && !data->last_command_was_sleep) {
+	if (busy.val && !data->last_command_was_sleep) {
 	    hdr(parser, frame->time_nsecs, "NSS_ERROR");
 	    fprintf(log_fp, "\n");
 	    //	    fprintf(log_fp, "ERROR: nss dropped while device was busy\n");
@@ -120,10 +127,10 @@ static void process_frame (parser_t *parser, frame_t *frame)
      */
     if (rising_edge(clk)) {
 
-	if (data->nss->val == 0) {
+	if (nss.val == 0) {
 
-	    data->accumulated_mosi_byte |= (data->mosi->val << (7 - data->accumulated_bits));
-	    data->accumulated_miso_byte |= (data->miso->val << (7 - data->accumulated_bits));
+	    data->accumulated_mosi_byte |= (mosi.val << (7 - data->accumulated_bits));
+	    data->accumulated_miso_byte |= (miso.val << (7 - data->accumulated_bits));
 
 	    data->accumulated_bits++;
 
@@ -378,57 +385,20 @@ static void parse_packet (parser_t *parser)
 fprintf(log_fp, "\n");
 }
 
-#if 0
-static signal_t signals_semtech[] =
-    {
-     { "nss",  .deglitch_nsecs = 50 },
-     { "clk",  .deglitch_nsecs = 50 },
-     { "mosi" },
-     { "miso" },
-     { "busy" },
-     { "irq",  .deglitch_nsecs = 150 },
-     { NULL, NULL}
-    };
-#endif
+static signal_t *my_signals[] =
+{
+    &nss,
+    &clk,
+    &mosi,
+    &miso,
 
-static signal_t
-    n1_nss  = { "n1_nss", .deglitch_nsecs = 50 },
-    n1_clk  = { "n1_clk", .deglitch_nsecs = 50 },
-    n1_mosi = { "n1_mosi" },
-    n1_miso = { "n1_miso" },
-    n1_busy = { "n1_busy" },
-    n1_irq  = { "n1_irq",  .deglitch_nsecs = 150
-    };
-
-static signal_t *signals_n1[] = {
-				&n1_nss,
-				&n1_clk,
-				&n1_mosi,
-				&n1_miso,
-				&n1_busy,
-				&n1_irq,
-				NULL
+    &busy,
+    &irq,
+    &rst,
+    NULL
 };
 
 
-
-#if 0
-static parser_t my_parser =
-    {
-     .name          = "lr1110_semtech",
-     .signals       = signals_semtech,
-     .process_frame = process_frame,
-     .log_file_name = "lr1110_semtech.log",
-
-     .data          = &lr1110_semtech_data,
-
-     /*
-      * To be able to filter glitches on the clock, we want to get events at
-      * least every 50 nSecs
-      */
-     .sample_time_nsecs = SAMPLE_TIME_NSECS,
-    };
-#endif
 
 static void grab_uart_output (parser_t *parser)
 {
@@ -437,31 +407,16 @@ static void grab_uart_output (parser_t *parser)
     parser_redirect_output("uart_lbtrace", parser->log_file);
 }
 
-static uint32_t n1_connected (parser_t *parser)
-{
-    lr1110_data_t
-	*data;
+static lr1110_data_t my_data;
 
-    data = parser->data;
-
-    data->nss  = &n1_nss;
-    data->clk  = &n1_clk;
-    data->mosi = &n1_mosi;
-    data->miso = &n1_miso;
-    data->busy = &n1_busy;
-    data->irq  = &n1_irq;
-
-    return 1;
-}
-
-static parser_t n1_parser =
+static parser_t my_parser =
     {
-     .name          = "lr1110_n1",
-     .signals       = signals_n1,
+     .name          = "lr1110",
+     .signals       = my_signals,
      .process_frame = process_frame,
-     .log_file_name = "lr1110_n1.log",
+     .log_file_name = "/tmp/lr1110.log",
 
-     .data          = &lr1110_n1_data,
+     .data          = &my_data,
 
      /*
       * To be able to filter glitches on the clock, we want to get events at
@@ -469,7 +424,7 @@ static parser_t n1_parser =
       */
      .sample_time_nsecs = SAMPLE_TIME_NSECS,
 
-     .connect      = n1_connected,
+     //     .connect      = n1_connected,
      .post_connect = grab_uart_output,
 
     };
@@ -477,5 +432,5 @@ static parser_t n1_parser =
 static void CONSTRUCTOR init (void)
 {
     //     parser_register(&my_parser);
-    parser_register(&n1_parser);
+    parser_register(&my_parser);
 }

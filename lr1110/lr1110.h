@@ -32,14 +32,6 @@ typedef struct {
 
 typedef struct lr1110_data_s {
 
-    signal_t
-       *busy,
-       *clk,
-       *irq,
-       *miso,
-       *mosi,
-       *nss;
-
     time_nsecs_t packet_start_time;
 
     time_nsecs_t irq_rise_time;

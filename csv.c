@@ -69,14 +69,15 @@ void
     /*
      * Read the first frame and process it.  Fills in values in 'next_frame'.
      */
-    rc = csv_data_read(fp);
+    //    rc = csv_data_read(fp);
 
-    parser_process_frame(&frame);
+    //    parser_process_frame(&frame);
 
     /*
      * Read frames, putting data values into the fields where the users have requested them.
+     * csv_data_read returns the number of tokens on the line.
      */
-    while(csv_data_read(fp) == 0) {
+    while(csv_data_read(fp)) {
 
 	frame.sample = sample++;
 
@@ -99,7 +100,7 @@ void
 	    /*
 	     * If there was a new time given, then synthesize frames.
 	     */
-	    if (rc == 0) {
+	    if (rc == 1) {
 
 		/*
 		 * process current data multiple times to synthesize input.
@@ -115,7 +116,7 @@ void
 		    frame.time_nsecs    += sample_time_nsecs;
 		    max_synthesize_time -= sample_time_nsecs;
 		}
-	    }
+	    } // rc == 0
 	}
     }
 
