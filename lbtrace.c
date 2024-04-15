@@ -2,7 +2,8 @@
 
 #include <stdlib.h>
 #include <string.h>
-#include <zephyr/drivers/trace.h>  // tag enumeration from Zephyr sources.
+#include <zephyr/drivers/trace_tags.h>  // tag enumeration from Zephyr sources.
+#include "addr2line.h"
 #include "hdr.h"
 #include "lookup.h"
 #include "parseSaleae.h"
@@ -29,7 +30,7 @@ static char         *tag_strs[NUMBER_TAG_STRINGS];
 static uint32_t      tag_strs_count;
 
 static void from (parser_t *parser);
-static void now (FILE *log_fp);
+static void parse_packet (parser_t *parser);
 
 static FILE *log_fp;
 
@@ -65,20 +66,8 @@ static uint32_t next (void)
     return rc;
 }
 
-#if 0
-static const char *radio_process_state_strs[] = {
-   "IDLE",
-   "SEND",
-   "RX1",
-   "RX2",
-   "TX_WAIT",
-   "INVALID",
-   "ERROR",
-   "DUTY_CYCLE_FULL",
-   "BUSY",
-};
-#endif
 
+#if 0
 static const char *task_type_strs[] = {
    "RX_LORA",
    "RX_FSK",
@@ -96,12 +85,15 @@ static const char *task_type_strs[] = {
    "USER",
    "NONE"
 };
+#endif
 
+#if 0
 static const char *task_state_strs[] =
     {
      "SCHEDULE",
      "ASAP"
     };
+#endif
 
 #if 0
 static const char *rp_task_state_strs[] =
@@ -115,7 +107,7 @@ static const char *rp_task_state_strs[] =
 #endif
 
 #if 0
-static const char *radio_state_strs[] = {
+static const char *lr1mac_radio_state_strs[] = {
    "IDLE",
    "PENDING",
    "TX_ON",
@@ -127,277 +119,6 @@ static const char *radio_state_strs[] = {
 #endif
 
 #define MAX_THREAD_NAME (32)
-
-/*-------------------------------------------------------------------------
- *
- * name:        parse_packet
- *
- * description:
- *
- * input:
- *
- * output:
- *
- *-------------------------------------------------------------------------*/
-static void parse_packet (parser_t *parser)
-{
-    char
-	thread_name[ MAX_THREAD_NAME + 1 ];  // add 1 for NULL termination
-    uint32_t
-	addr,
-	i,
-	*ip,
-	lineno,
-	lineno_tag,
-	magic,
-	ra,
-	tag,
-	val;
-    thread_t
-	*thread;
-
-    DECLARE_LOG_FP;
-
-    /*
-     * The first item should be a magic word.
-     */
-    magic = next();
-
-    if ((magic & 0xffffff) != TRACE_MAGIC) {
-	fprintf(log_fp, "Packet missing magic word: %x (TRACE_MAGIC: %x XOR: %08x) \n", magic, TRACE_MAGIC, magic ^ TRACE_MAGIC);
-	packet_dump();
-	return;
-    }
-
-    //    printf(" %5d |", next() );
-
-    /*
-     * Get line number
-     */
-    lineno_tag = next();
-
-    lineno = (lineno_tag >> 16) & 0xffff;
-    tag    = (lineno_tag >>  0) & 0xffff;
-
-
-    {
-	char
-	    buf[32],
-	    *tag_str;
-
-	if (tag < TAG_ZERO) {
-	    sprintf(buf, "??? %x", tag);
-	    tag_str = buf;
-	}
-	else {
-	    tag_str = tag_strs[tag - TAG_ZERO];
-	}
-
-	hdr_with_lineno(parser, packet_start_time_nsecs, "", tag_str, lineno);
-
-    }
-
-    switch (tag) {
-
-
-    case TAG_MISC:
-	val = next();
-	fprintf(log_fp, "val: 0x%x  %d", val, val);
-	break;
-
-    case TAG_SWAP_IN:
-	addr = next();
-
-	thread = thread_find(addr);
-
-	fprintf(log_fp, "addr: 0x%x -- %s", addr, thread->name);
-	break;
-
-    case TAG_THREAD_NAME:
-
-	/*
-	 * Get thread address
-	 */
-	addr = next();
-
-	/*
-	 * Accumulate the name -- 32 bytes
-	 */
-	ip = (uint32_t *) thread_name;
-
-	for (i=0; i<8; i++) {
-	    ip[i] = next();
-	}
-
-	/*
-	 * enforce a NULL termination
-	 */
-	thread_name[ MAX_THREAD_NAME ] = 0;
-
-	/*
-	 * Create the thread.
-	 */
-	thread_create(addr, thread_name);
-
-	fprintf(log_fp, "addr: 0x%x -- %s", addr, thread_name);
-
-	break;
-
-    case TAG_TRIGGER:
-	printf("*** TRIGGER ***");
-	printf("from: %x", next());
-	break;
-
-    case TAG_HERE:
-	ra = next();
-	fprintf(log_fp, "ra: %x  ", ra );
-	lookup(parser, ra);
-	break;
-
-	/* ------ optional tags -------- */
-
-#if 0
-    case TAG_CONFIGURE_RX_WINDOW:
-	fprintf(log_fp, "t_current_ms: %d ", next());
-	fprintf(log_fp, "talarm_ms: %d ", next());
-	fprintf(log_fp, "rx_offset_ms: %d ", next());
-	fprintf(log_fp, "delay_ms: %d ", next());
-	fprintf(log_fp, "tx_done_irq: %d ", next());
-	break;
-#endif
-
-#if 0
-    case TAG_GPIO_ERROR:
-	ra = next();
-	fprintf(log_fp, "ra: %x  ", ra );
-
-	lookup(parser, ra);
-	break;
-#endif
-
-    case TAG_RADIO_PLANNER_LAUNCH_CURRENT:
-	fprintf(log_fp, "id: %d ", next());
-	addr = next();
-	fprintf(log_fp, "callbacks: %x **************************************** ", addr);
-
-	lookup(parser, addr);
-	break;
-
-    case TAG_SYS_CLOCK_START:
-	break;
-
-    case TAG_TASK_ABORT:
-	fprintf(log_fp, "hook_id: %d ", next());
-	now(log_fp);
-	fprintf(log_fp, "start_time_ms: %d ", next());
-	break;
-
-    case TAG_RADIO_PLANNER_TASK_ENQUEUE:
-	fprintf(log_fp, "\n\t\t\t");
-	fprintf(log_fp, "hook_id: %d\n\t\t\t", next());
-	fprintf(log_fp, "payload: %x\n\t\t\t", next());
-	fprintf(log_fp, "payload_size: %d\n\t\t\t", next());
-
-	val = next();
-	fprintf(log_fp, "task->state: %d (%s)\n\t\t\t", val, task_state_strs[val] );
-	val = next();
-	fprintf(log_fp, "task->type: %d (%s)\n\t\t\t", val, task_type_strs[val] );
-	fprintf(log_fp, "task->start_time_ms: %d ", next());
-	fprintf(log_fp, "now: %d ", next());
-	from(parser);
-	break;
-
-
-
-
-
-
-
-
-
-
-
-
-
-    case TAG_MISSED_RX_WINDOW:
-	fprintf(log_fp, "talarm: %d ", next());
-	fprintf(log_fp, "rx_offset: %d ", next());
-	break;
-
-    case TAG_PE4259_SELECT:
-	fprintf(log_fp, "select: ctrl: %d ", next());
-	fprintf(log_fp, "vdd: %d ", next());
-	break;
-
-    case TAG_MODEM_SUPERVISOR_ADD_TASK:
-	fprintf(log_fp, "id: %d  ", next());
-	fprintf(log_fp, "priority: %d  ", next());
-	fprintf(log_fp, "fport: %d  ", next());
-	break;
-
-    case TAG_MODEM_SUPERVISOR_ENGINE:
-	break;
-
-    case TAG_MODEM_SUPERVISOR_SCHEDULER:
-	break;
-   case TAG_MODEM_SUPERVISOR_SCHEDULER_NEXT:
-	fprintf(log_fp, "id: %d  ", next());
-	break;
-   case TAG_MODEM_SUPERVISOR_SCHEDULER_PAST:
-	fprintf(log_fp, "id: %d  ", next());
-	fprintf(log_fp, "id: %d  ", next());
-	break;
-
-   case TAG_MODEM_SUPERVISOR_LAUNCH_TASK:
-	fprintf(log_fp, "id: %d  ", next());
-	break;
-   case TAG_MODEM_SUPERVISOR_REMOVE_TASK:
-	fprintf(log_fp, "id: %d  ", next());
-	break;
-    case TAG_TRACKER_RUN_ENGINE:
-	break;
-    case TAG_TRACKER_SLEEP_TIME_MS:
-	fprintf(log_fp, "msec: %d  ", next());
-	break;
-    case TAG_TRACKER_SLEEP:
-	break;
-    case TAG_TRACKER_WAKE:
-	fprintf(log_fp, "airplane: %d  ", next());
-	break;
-   case TAG_SEMTRACKER_ACCEL:
-	fprintf(log_fp, "curr_time: %d  ", next());
-	fprintf(log_fp, "last_time: %d  ", next());
-	break;
-
-   case TAG_LR11XX_HAL_TIMER_START:
-	fprintf(log_fp, "mSec: %d  ", next());
-	fprintf(log_fp, "callback: %x  ", next());
-	fprintf(log_fp, "context: %x  ", next());
-	from(parser);
-	break;
-
-   case TAG_SMTC_MODEM_HAL_START_TIMER:
-	fprintf(log_fp, "mSec: %d  ", next());
-	fprintf(log_fp, "callback: %x  ", next());
-	fprintf(log_fp, "context: %x  ", next());
-	from(parser);
-	break;
-
-
-    default:
-	fprintf(log_fp, "Unparsed tag %x\n", tag);
-
-	tag -= TAG_ZERO;
-	if (tag < tag_strs_count) {
-	    fprintf(log_fp, "Appears to be: '%s'\n", tag_strs[tag]);
-	}
-	fprintf(log_fp, "\n");
-
-	packet_dump();
-	exit(1);
-    }
-}
-
 
 /*-------------------------------------------------------------------------
  *
@@ -503,7 +224,17 @@ static void packet_dump (void)
     }
 }
 
-#if 1
+/*-------------------------------------------------------------------------
+ *
+ * name:        from
+ *
+ * description:
+ *
+ * input:
+ *
+ * output:
+ *
+ *-------------------------------------------------------------------------*/
 static void from (parser_t *parser)
 {
     uint32_t
@@ -513,13 +244,274 @@ static void from (parser_t *parser)
     from_addr = next();
     fprintf(log_fp, "from: %x  ", from_addr );
 
-    lookup(parser, from_addr);
+    addr2line(parser, from_addr);
 }
+
+
+#if 0
+static const char *lr1mac_state_strs[] = {
+   "LWPSTATE_IDLE",
+   "LWPSTATE_SEND",
+   "LWPSTATE_RX1",
+   "LWPSTATE_RX2",
+   "LWPSTATE_TX_WAIT",
+   "LWPSTATE_INVALID",
+   "LWPSTATE_ERROR",
+   "LWPSTATE_DUTY_CYCLE_FULL",
+   "LWPSTATE_BUSY",
+};
 #endif
 
-static void now (FILE *log_fp)
+/*-------------------------------------------------------------------------
+ *
+ * name:        parse_packet
+ *
+ * description:
+ *
+ * input:
+ *
+ * output:
+ *
+ *-------------------------------------------------------------------------*/
+static void parse_packet (parser_t *parser)
 {
-    uint32_t now = next();
+    char
+	thread_name[ MAX_THREAD_NAME + 1 ];  // add 1 for NULL termination
+    uint32_t
+	addr,
+	i,
+	*ip,
+	lineno,
+	lineno_tag,
+	magic,
+	ra,
+	tag,
+	val;
+    thread_t
+	*thread;
 
-    fprintf(log_fp, "now: %d (msecs)", now);
+    DECLARE_LOG_FP;
+
+    /*
+     * The first item should be a magic word.
+     */
+    magic = next();
+
+    if ((magic & 0xffffff) != TRACE_MAGIC) {
+	fprintf(log_fp, "Packet missing magic word: %x (TRACE_MAGIC: %x XOR: %08x) \n", magic, TRACE_MAGIC, magic ^ TRACE_MAGIC);
+	packet_dump();
+	return;
+    }
+
+    //    printf(" %5d |", next() );
+
+    /*
+     * Get line number
+     */
+    lineno_tag = next();
+
+    lineno = (lineno_tag >> 16) & 0xffff;
+    tag    = (lineno_tag >>  0) & 0xffff;
+
+
+    {
+	char
+	    buf[32],
+	    *tag_str;
+
+	if (tag < TAG_ZERO) {
+	    sprintf(buf, "??? %x", tag);
+	    tag_str = buf;
+	}
+	else {
+	    tag_str = tag_strs[tag - TAG_ZERO];
+	}
+
+	hdr_with_lineno(parser, packet_start_time_nsecs, "", tag_str, lineno);
+
+    }
+
+    switch (tag) {
+
+    case TAG_FROM:
+	from(parser);
+	break;
+
+    case TAG_MISC:
+	val = next();
+	fprintf(log_fp, "val: 0x%x  %d", val, val);
+	break;
+
+    case TAG_SWAP_IN:
+	addr = next();
+
+	thread = thread_find(addr);
+
+	fprintf(log_fp, "addr: 0x%x -- %s", addr, thread->name);
+	break;
+
+    case TAG_THREAD_NAME:
+
+	/*
+	 * Get thread address
+	 */
+	addr = next();
+
+	/*
+	 * Accumulate the name -- 32 bytes
+	 */
+	ip = (uint32_t *) thread_name;
+
+	for (i=0; i<8; i++) {
+	    ip[i] = next();
+	}
+
+	/*
+	 * enforce a NULL termination
+	 */
+	thread_name[ MAX_THREAD_NAME ] = 0;
+
+	/*
+	 * Create the thread.
+	 */
+	thread_create(addr, thread_name);
+
+	fprintf(log_fp, "addr: 0x%x -- %s", addr, thread_name);
+
+	break;
+
+    case TAG_TRIGGER:
+	printf("*** TRIGGER ***");
+	printf("from: %x", next());
+	break;
+
+    case TAG_HERE:
+	ra = next();
+	fprintf(log_fp, "ra: %x  ", ra );
+	addr2line(parser, ra);
+	break;
+
+	/* ------ optional tags -------- */
+
+    case TAG_RP_TASK_ENQUEUE:
+	fprintf(log_fp, "\n\t\t\t");
+	fprintf(log_fp, "hook_id: %d\n\t\t\t", next());
+
+	addr = next();
+	fprintf(log_fp, "launch_task_callbacks: 0x%x -- ", addr);
+	addr2line(parser, addr);
+	fprintf(log_fp, "\n\t\t\t");
+
+	from(parser);
+#if 0
+	fprintf(log_fp, "payload: %x\n\t\t\t", next());
+	fprintf(log_fp, "payload_size: %d\n\t\t\t", next());
+
+	val = next();
+	fprintf(log_fp, "task->state: %d (%s)\n\t\t\t", val, task_state_strs[val] );
+	val = next();
+	fprintf(log_fp, "task->type: %d (%s)\n\t\t\t", val, task_type_strs[val] );
+	fprintf(log_fp, "task->start_time_ms: %d ", next());
+	fprintf(log_fp, "now: %d ", next());
+#endif
+	break;
+
+
+#if 0
+    case TAG_CONFIGURE_RX_WINDOW:
+	fprintf(log_fp, "t_current_ms: %d ", next());
+	fprintf(log_fp, "talarm_ms: %d ", next());
+	fprintf(log_fp, "rx_offset_ms: %d ", next());
+	fprintf(log_fp, "delay_ms: %d ", next());
+	fprintf(log_fp, "tx_done_irq: %d ", next());
+	break;
+#endif
+
+    case TAG_LR1_STACK_TX_RADIO_START:
+	fprintf(log_fp, "modulation: %x ", next());
+	from(parser);
+	break;
+
+    case TAG_SYS_CLOCK_START:
+	break;
+
+    case TAG_LR1_STACK_MAC_START_TIME:
+	fprintf(log_fp, "target_timer_ms: %d ", next());
+	fprintf(log_fp, "send_at_time: %d ", next());
+	break;
+
+    case TAG_RP_TASK_ARBITER:
+	fprintf(log_fp, "now: %d ", next());
+	break;
+
+    case TAG_RP_TASK_UPDATE_TIME:
+	fprintf(log_fp, "hook: %d ", next());
+	fprintf(log_fp, "start_time_ms: %d ", next());
+	fprintf(log_fp, "RP_MCU_FAIRNESS_DELAY_MS: %d ", next());
+	break;
+
+     case TAG_RP_RADIO_IRQ_CALLBACK:
+    case TAG_RP_TIMER_IRQ_CALLBACK:
+    case TAG_RP_CALLBACK:
+	fprintf(log_fp, "rp: %x ", next());
+	break;
+
+    case TAG_SMTC_MODEM_REQUEST_UPLINK:
+	fprintf(log_fp, "f_port: %d ", next());
+	fprintf(log_fp, "length: %d ", next());
+	break;
+
+    case TAG_APPS_MODEM_EVENT_PROCESS:
+	from(parser);
+	break;
+
+    case TAG_MODEM_SUPERVISOR_ENGINE:
+	break;
+
+    case TAG_MODEM_SUPERVISOR_ENGINE_LAUNCH_FUNC:
+	fprintf(log_fp, "task_id: %d ", next());
+
+	addr = next();
+	fprintf(log_fp, "func: %d ", addr);
+	addr2line(parser, addr);
+	break;
+
+    case TAG_LORAWAN_SEND_MGMT_ON_LAUNCH:
+	fprintf(log_fp, "send_status: %d ", next());
+	fprintf(log_fp, "payload_length: %d ", next());
+	break;
+
+    case TAG_SMTC_REAL_IS_PAYLOAD_SIZE_VALID:
+	fprintf(log_fp, "payload_length: %d ", next());
+	break;
+
+    case TAG_TIMER_CALLBACK:
+	fprintf(log_fp, "callback: %x  ", next());
+	fprintf(log_fp, "context: %x  ", next());
+	break;
+
+    case TAG_SEMTRACKER_GNSS_SCAN_AGGREGATE:
+	break;
+
+    case TAG_SEMTRACKER_GNSS_SCAN:
+	break;
+    case TAG_SEMTRACKER_GNSS_SCAN_DONE:
+	break;
+    case TAG_LR11XX_DRV_LNA_ENABLE:
+	break;
+    case TAG_LR11XX_DRV_LNA_DISABLE:
+	break;
+
+    default:
+	fprintf(log_fp, "Unparsed tag %x\n", tag);
+
+	tag -= TAG_ZERO;
+	if (tag < tag_strs_count) {
+	    fprintf(log_fp, "Appears to be: '%s'\n", tag_strs[tag]);
+	}
+	fprintf(log_fp, "\n");
+
+	packet_dump();
+	exit(1);
+    }
 }
