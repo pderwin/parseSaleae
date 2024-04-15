@@ -8,7 +8,7 @@
 #include "log_file.h"
 #include "parseSaleae.h"
 #include "parser.h"
-#include <zephyr/drivers/trace.h>
+#include <zephyr/drivers/trace_tags.h>
 
 #define BIT_TIME_921 ( 1000000000 / 921600 )
 
@@ -312,7 +312,6 @@ static void check_for_packet(parser_t *parser)
 	magic;
     uart_t
 	*uart = parser->data;
-    DECLARE_LOG_FP;
 
     count = uart->buffer_head - uart->buffer_tail;
 
@@ -333,7 +332,7 @@ static void check_for_packet(parser_t *parser)
      * is the data word count that follows.
      */
     if ((magic & 0xffffff) != TRACE_MAGIC) {
-	fprintf(log_fp, "NOT magic: expect: %x \n", TRACE_MAGIC);
+	//	fprintf(log_fp, "NOT magic: expect: %x \n", TRACE_MAGIC);
 
 	/*
 	 * remove first byte from buffer and throw it away.
