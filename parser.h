@@ -4,6 +4,8 @@
 #include "log_file.h"
 #include "signal.h"
 
+typedef struct parser_s parser_t;
+
 struct parser_s {
     char *name;
 
