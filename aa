@@ -1,6 +1,10 @@
 #!/bin/sh
+#------------------------------
+#
+# tools/parseSaleae/aa
+#
+#------------------------------
 
-# clear
 
 # printf "\n\nCSV \n\n"
 make --quiet -C ~/libs/csv
@@ -11,17 +15,47 @@ if [ $rc -ne 0 ] ; then
     exit 1;
 fi
 
-# printf "\n\nPARSE_LCD \n\n"
-# make --quiet RSYNC
+
+
+
+
+# printf "\n\nCSV \n\n"
+(
+    cd ~/libs/gdb
+
+    ./aa
+    rc=$?
+
+    if [ $rc -ne 0 ] ; then
+	set-title Error building libs/gdb
+	exit 1;
+    fi
+)
 
 if [ ! -d build ] ; then
     cmake -S . -B build -DCMAKE_BUILD_TYPE=DEBUG
 fi
 
-cmake --build build --parallel 2  #   >/tmp/compile.lst 2>&1
+
+
+
+
+LOG=/tmp/parseSaleae.log
+
+rm -f $LOG
+
+date > $LOG
+cmake --build build --parallel 4 # >>$LOG 2>&1
 rc=$?
 
-if [ $rc -ne 0 ] ; then
+if [ $rc -eq 0 ] ; then
+    rm -f $LOG
+else
+    if [ -r $LOG ] ; then
+	#	clear
+	head $LOG
+	wc $LOG
+    fi
     set-title Error
     exit 1
 fi
@@ -32,7 +66,5 @@ fi
 
 # make --quiet
 make
-
-# make joins.lst
 
 date
