@@ -1,3 +1,5 @@
+.gdbinit
+find_signal_names
 build
 *.lst
 *.log
