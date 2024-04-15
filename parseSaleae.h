@@ -10,10 +10,6 @@
 
 #include "csv.h"
 
-typedef struct parser_s parser_t;
-
-void addr2line              (unsigned int address);
-void addr2line_init         (char *elf_file);
 void csv_process_file       (FILE *fp);
 void csv_sample_time_nsecs  (uint32_t nsecs);
 

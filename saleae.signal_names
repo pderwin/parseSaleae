@@ -1,0 +1,16 @@
+Channel 0=Channel
+Channel 1=Channel
+Channel 2=uart_lbtrace
+Channel 3=uart_txd
+Channel 4=Channel
+Channel 6=lr1110_irq
+Channel 7=Channel
+Channel 8=Channel
+Channel 9=Channel
+Channel 10=Channel
+Channel 15=lr1110_busy
+Channel 14=lr1110_nss
+Channel 13=lr1110_clk
+Channel 12=lr1110_mosi
+Channel 11=lr1110_miso
+Channel 5=lr1110_rst

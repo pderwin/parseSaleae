@@ -4,72 +4,48 @@ project(parseSaleae)
 
 # set(CMAKE_VERBOSE_MAKEFILE ON)
 
-set(ZEPHYR "/home/erwin/moko_081623/source/zephyr" )
+set(ZEPHYR "/home/erwin/seeed-wio-wm1110/source/zephyr" )
 
 add_compile_options(-Wall -Werror -Wextra -Wno-missing-field-initializers)
 
-
-#
-# Obsolete files not being maintained
-#
-#	bootloader_i2c.c
-#	panel_i2c.c
-#	parser_backlight.c
-#	parser_i2c.c
-#	parser_spi_device.c
-#	parser_spi_uart.c
-#	parser_hsync.c
-#	parser_vsync.c
-#	st25dv.c
-#	parser_lbtrace.c
-#	parser_cbi.c
-#	parser_ftdi_do.c
-#	parser_hpal.c
-#	parser_ftdi_di.c
-
 add_executable(parseSaleae
-	addr2line.c
-	csv.c
-	hdr.c
-	hex.c
-	i2c_parser.c
-	lbtrace.c
-	localtime.c
-	log_file.c
-	lookup.c
-	packet.c
-	panel_spi.c
-	parseSaleae.c
-	parser.c
-	parser_uart.c
-	parser_uart_lbtrace.c
-	signal.c
-	tag.c
-	thread.c
+  addr2line.c
+  csv.c
+  hdr.c
+  hex.c
+  i2c_parser.c
+  lbtrace.c
+  localtime.c
+  log_file.c
+  panel_spi.c
+  parseSaleae.c
+  parser.c
+  parser_uart.c
+  parser_uart_lbtrace.c
+  signal.c
+  signal_names.c
+  tag.c
+  thread.c
 
-	lis3dh/lis3dh.c
+  lis3dh/lis3dh.c
 
-	lr1110/crypto.c
-	lr1110/parser.c
-	lr1110/gnss.c
-	lr1110/radio.c
-	lr1110/system.c
-	lr1110/wifi.c
-	)
+  lr1110/crypto.c
+  lr1110/parser.c
+  lr1110/gnss.c
+  lr1110/radio.c
+  lr1110/system.c
+  lr1110/wifi.c
+  )
 
 include_directories( ${CMAKE_CURRENT_SOURCE_DIR} )
 include_directories( $ENV{HOME}/libs )
 
 target_include_directories(parseSaleae PUBLIC ${ZEPHYR}/include )
-# target_include_directories(parseSaleae PUBLIC /home/erwin/jake-v-firmware.041522/source/zephyr-jake-v/include)
-# target_include_directories(parseSaleae PUBLIC /home/erwin/jake-v-firmware.041522/source/zephyr-jake-v/include/drivers)
-# target_include_directories(parseSaleae PUBLIC /home/erwin/jake-v-firmware.041522/build/zephyr/include/generated)
 
 add_compile_definitions(ZEPHYR_INCLUDES="${ZEPHYR}/include" )
-# add_compile_definitions(ZEPHYR_INCLUDES="/home/erwin/jake-v-firmware.041522/source/zephyr-jake-v/include" )
 
 find_library( CSV_LIBRARY NAMES csv PATHS   /home/erwin/libs )
 find_library( GDB_LIBRARY NAMES gdb PATHS   /home/erwin/libs )
 find_library( STDC_LIBRARY NAMES stdc++ PATHS /usr/lib/gcc/x86_64-linux-gnu/9 )
 
-target_link_libraries(parseSaleae ${CSV_LIBRARY} ${GDB_LIBRARY} stdc++ m readline tinfo expat pthread dl z )
+target_link_libraries(parseSaleae ${CSV_LIBRARY} ${GDB_LIBRARY} gmp mpfr ncurses stdc++ m readline tinfo expat pthread dl z )

@@ -2,10 +2,12 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include "addr2line.h"
 #include "csv.h"
 #include "frame.h"
 #include "hex.h"
 #include "parseSaleae.h"
+#include "signal_names.h"
 #include "tag.h"
 
 static void
@@ -22,7 +24,7 @@ int main(int argc, char *argv[])
     unsigned int
 	use_hex        = 0;
 
-    //    setbuf(stdout, NULL);
+    setbuf(stdout, NULL);
 
     printf("parseSaleae v1.0\n");
 
@@ -35,26 +37,30 @@ int main(int argc, char *argv[])
 	int c;
 
 	static struct option long_options[] = {
-					       {"elf",           required_argument, 0, 'e'},
-					       {"hex",           0,                 0, 'x'},
-					       {"help",          0,                 0,   0},
-					       {"no-time-stamp", 0,                 0, 'n'},
-					       {"tags",          0,                 0, 't'},
-					       {0,               0,                 0,   0}
+	    {"signal-names",  required_argument, 0, 's'},
+	    {"elf",           required_argument, 0, 'e'},
+	    {"hex",           0,                 0, 'x'},
+	    {"help",          0,                 0,   0},
+	    {"no-time-stamp", 0,                 0, 'n'},
+	    {"tags",          0,                 0, 't'},
+	    {0,               0,                 0,   0}
 	};
 
 	while (1) {
 	    int option_index = 0;
 
-	    c = getopt_long (argc, argv, "e:hntv:", long_options, &option_index);
+	    c = getopt_long (argc, argv, "e:hns:tv:", long_options, &option_index);
 	    if (c == -1)
 		break;
 
 	    switch (c) {
 
+	    case 's':
+		signal_names_filename(optarg);
+		break;
+
 	    case 'e':
 		elf_file = strdup(optarg);
-		printf("\n");
 		break;
 
 	    case 'n':
@@ -91,7 +97,6 @@ int main(int argc, char *argv[])
 
     if (elf_file) {
 	addr2line_init(elf_file);
-	lookup_init(elf_file);
     }
 
     printf("input file: '%s' \n\n", inputFileName);
