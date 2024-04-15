@@ -414,7 +414,7 @@ static parser_t my_parser =
      .name          = "lr1110",
      .signals       = my_signals,
      .process_frame = process_frame,
-     .log_file_name = "/tmp/lr1110.log",
+     .log_file_name = "lr1110.log",
 
      .data          = &my_data,
 

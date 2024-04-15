@@ -13,21 +13,23 @@ enum {
       SET_FREQ_SEARCH_SPACE    = 0x04,
       READ_FREQ_SEARCH_SPACE   = 0x05,
       SET_MODE                 = 0x08,
-      SCAN_AUTONOMOUS          = 0x09,
-      SCAN_ASSISTED            = 0x0a,
+      SCAN                     = 0x0b,
       GET_RESULT_SIZE          = 0x0c,
       READ_RESULTS             = 0x0d,
       ALMANAC_FULL_UPDATE      = 0x0e,
       UNKNOWN_0x0F             = 0x0f,
-      SET_ASSISTANCE_POS  = 0x10,
-      READ_ASSISTANCE_POS = 0x11,
+      SET_ASSISTANCE_POS       = 0x10,
+      READ_ASSISTANCE_POS      = 0x11,
       PUSH_SOLVER_MSG          = 0x14,
       GET_CONTEXT_STATUS       = 0x16,
       GET_NB_SV_DETECTED       = 0x17,
       GET_SV_DETECTED          = 0x18,
       GET_CONSUMPTION          = 0x19,
       GET_SV_VISIBLE           = 0x1f,
-      GET_SV_VISIBLE_DOPPLER   = 0x20,
+      GET_SV_VISIBLE_DOPPLER       = 0x20,
+      READ_LAST_SCAN_MODE_LAUNCHED = 0x26,
+      READ_TIME                    = 0x34,
+      READ_CUMULATIVE_TIMING       = 0x4a,
 
       // not documented this way      GNSS_SCAN_AUTONOMOUS        = 0x0430,
 };
@@ -36,6 +38,8 @@ enum {
 #define LR11XX_GNSS_SCALING_LONGITUDE 180
 
 static void  almanac_update(FILE *fp, uint8_t *cp);
+static void  field_32 (FILE *fp, char *str);
+static void  field_init (uint8_t * cp);
 static float to_latitude(uint8_t *lat_str);
 static float to_longitude(uint8_t *long_str);
 
@@ -55,8 +59,7 @@ void lr1110_gnss(parser_t *parser)
 	count;
     uint32_t
 	cmd,
-	i,
-	scan_time;
+	i;
     float
 	latitude_f,
 	longitude_f;
@@ -180,13 +183,12 @@ void lr1110_gnss(parser_t *parser)
 	break;
 
 
-    case SCAN_AUTONOMOUS:
-	checkPacketSize("SCAN_AUTONOMOUS", 9);
+    case SCAN:
+	checkPacketSize("SCAN", 5);
 
-	fprintf(log_fp, "time: %x ",        get_32(&mosi[2]));
-	fprintf(log_fp, "effort: %x ",      mosi[6]);
-	fprintf(log_fp, "result_mask: %x ", mosi[7]);
-	fprintf(log_fp, "nbsvmax: %x ",     mosi[8]);
+	fprintf(log_fp, "effort: %x ",      mosi[2]);
+	fprintf(log_fp, "input params: %x ", mosi[3]);
+	fprintf(log_fp, "nbsvmax: %x ",     mosi[4]);
 	break;
 
     case SET_MODE:
@@ -277,6 +279,7 @@ void lr1110_gnss(parser_t *parser)
 
 	break;
 
+#if 0
     case SCAN_ASSISTED:
 	checkPacketSize("SCAN_ASSISTED", 9);
 
@@ -287,6 +290,7 @@ void lr1110_gnss(parser_t *parser)
 	fprintf(log_fp, "result_mask: %d ", mosi[7]);
 	fprintf(log_fp, "nb_sv_max: %d ", mosi[8]);
 	break;
+#endif
 
     case SET_ASSISTANCE_POS:
 	checkPacketSize("SET_ASSISTANCE_POS", 6);
@@ -331,6 +335,95 @@ void lr1110_gnss(parser_t *parser)
 
     case GET_SV_VISIBLE_DOPPLER:
 	checkPacketSize("GET_SV_VISIBLE_DOPPLER", 2);
+	break;
+
+
+    case READ_TIME:
+	checkPacketSize("READ_TIME", 2);
+	parse_stat1(miso[0]);
+	set_pending_cmd(READ_TIME);
+	break;
+
+    case RESPONSE(READ_TIME):
+	checkPacketSize("READ_TIME (rsp)", 12 + 1);
+
+	parse_stat1(miso[0]);
+
+	fprintf(log_fp, "error code: %02x ", miso[1] );
+	fprintf(log_fp, "GPS Time s: %x ", get_32(&miso[2]));
+	fprintf(log_fp, "number us in s: %x ", get_24(&miso[6]));
+	fprintf(log_fp, "time accuracy: %x ", get_32(&miso[9]));
+	break;
+
+    case READ_LAST_SCAN_MODE_LAUNCHED:
+	checkPacketSize("READ_LAST_SCAN_MODE_LAUNCHED", 2);
+	set_pending_cmd(READ_LAST_SCAN_MODE_LAUNCHED);
+	break;
+
+    case RESPONSE(READ_LAST_SCAN_MODE_LAUNCHED):
+	checkPacketSize("READ_LAST_SCAN_MODE_LAUNCHED (rsp)", 1 + 1);
+
+	parse_stat1(miso[0]);
+
+	fprintf(log_fp, "mode: %x ", miso[1]);
+	break;
+
+    case READ_CUMULATIVE_TIMING:
+	checkPacketSize("READ_CUMULATIVE_TIMING", 1 + 1);
+	set_pending_cmd(READ_CUMULATIVE_TIMING);
+	break;
+
+    case RESPONSE(READ_CUMULATIVE_TIMING):
+	checkPacketSize("READ_CUMULATIVE_TIMING (rsp)", 125 + 1);
+
+	parse_stat1(miso[0]);
+
+	field_init(&miso[1]);
+
+	field_32(log_fp, "init");
+
+	field_32(log_fp, "phase1_gps_capture");
+	field_32(log_fp, "phase1_gps_process");
+
+	field_32(log_fp, "multiscan_gps_capture");
+	field_32(log_fp, "multiscan_gps_process");
+	field_32(log_fp, "multiscan_gps_sleep_32k");
+
+	field_32(log_fp, "phase1_beidou_capture");
+	field_32(log_fp, "phase1_beidou_process");
+
+	field_32(log_fp, "multiscan_beidou_capture");
+	field_32(log_fp, "multiscan_beidou_process");
+	field_32(log_fp, "multiscan_beidou_sleep_32k");
+
+	field_32(log_fp, "demod_capture");
+	field_32(log_fp, "demod_process");
+	field_32(log_fp, "demod_sleep_32k");
+	field_32(log_fp, "demod_sleep_32m");
+
+	field_32(log_fp, "total_gps_capture");
+	field_32(log_fp, "total_gps_process");
+	field_32(log_fp, "total_gps_sleep_32k");
+	field_32(log_fp, "total_gps_sleep_32m");
+
+	field_32(log_fp, "total_gps");
+
+	field_32(log_fp, "total_beidou_capture");
+	field_32(log_fp, "total_beidou_process");
+	field_32(log_fp, "total_beidou_sleep_32k");
+	field_32(log_fp, "total_beidou_sleep_32m");
+
+	field_32(log_fp, "total_beidou");
+
+	field_32(log_fp, "total_capture");
+	field_32(log_fp, "total_process");
+	field_32(log_fp, "total_sleep_32k");
+	field_32(log_fp, "total_sleep_32m");
+
+	field_32(log_fp, "total");
+
+	field_32(log_fp, "last capture size 32k cnt");
+	field_32(log_fp, "constellation demod");
 	break;
 
     default:
@@ -389,4 +482,19 @@ static float to_longitude(uint8_t *long_str)
     longitude_f = (longitude * LR11XX_GNSS_SCALING_LONGITUDE ) / 2048;
 
     return longitude_f;
+}
+
+static uint8_t *field_ptr;
+
+static void field_init (uint8_t *cp)
+{
+    field_ptr = cp;
+}
+
+static void field_32 (FILE *fp, char *str)
+{
+    fprintf(fp, "\n\t\t%-30.30s", str);
+    fprintf(fp, "%x", get_32(field_ptr) );
+
+    field_ptr += 4;
 }
