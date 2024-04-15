@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <zephyr/drivers/trace.h>
+#include <zephyr/drivers/trace_tags.h>
 #include "parseSaleae.h"
 #include "tag.h"
 
@@ -43,9 +43,9 @@ static void tag_dump(void)
    FILE
       *fp;
 
-   sprintf(tag_filename, "%s/trace.h", ZEPHYR_INCLUDES);
+   sprintf(tag_filename, "%s/zephyr/drivers/trace_tags.h", ZEPHYR_INCLUDES);
 
-   sprintf(buf, "grep TRACE_ %s | grep -v define", tag_filename);
+   sprintf(buf, "grep TAG_ %s", tag_filename);
 
    fp = popen(buf, "r");
 
@@ -79,48 +79,6 @@ void
 }
 
 /**
- ****************************************************************************************************
- *
- * \brief
- *
- * \param
- *
- * \returns
- *
- *****************************************************************************************************/
-void tag_find(unsigned int tag)
-{
-    char
-	buf[512],
-	tag_filename[128];
-    unsigned int
-	current_tag;
-    FILE
-	*fp;
-
-    sprintf(tag_filename, "%s/trace.h", ZEPHYR_INCLUDES);
-
-    sprintf(buf, "grep TAG_ %s | grep -v define", tag_filename);
-
-    fp = popen(buf, "r");
-
-    current_tag = TAG_ZERO;
-
-    while (fgets(buf, sizeof(buf), fp)) {
-	//      printf("tag: %x  %s \n", current_tag, buf);
-	if (current_tag == tag) {
-	    break;
-	}
-
-	current_tag++;
-    }
-
-    pclose(fp);
-
-    printf("tag: %x Appears to be: %s", tag, buf);
-}
-
-/**
 ****************************************************************************************************
 *
 * \brief
@@ -141,7 +99,7 @@ uint32_t tag_scan(uint32_t max_str_count, char *tag_strs[])
     FILE
 	*fp;
 
-    sprintf(tag_filename, "%s/zephyr/drivers/trace.h", ZEPHYR_INCLUDES);
+    sprintf(tag_filename, "%s/zephyr/drivers/trace_tags.h", ZEPHYR_INCLUDES);
 
     sprintf(buf, "grep TAG_ %s | grep -v define", tag_filename);
 
