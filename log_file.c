@@ -18,9 +18,13 @@ log_file_t *stdout_lf;
  * output:
  *
  *-------------------------------------------------------------------------*/
-log_file_t *log_file_create (char *filename)
+log_file_t *log_file_create (char *in_filename)
 {
+    char
+	filename[128];
     FILE *fp;
+
+    sprintf(filename, "/tmp/%s", in_filename);
 
     if ((fp = fopen(filename, "w")) == NULL) {
 	fprintf(stderr, "Error opening log file: '%s'\n", filename);
