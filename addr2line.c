@@ -1,49 +1,57 @@
 #include <stdio.h>
 #include <string.h>
+#include "addr2line.h"
+#include "gdb.h"
 
-extern void initialize_gdb_bfd   (void);
-extern void initialize_inferiors (void);
-extern void initialize_progspace (void);
-extern void
-   info_line_command_c    (const char *arg, int from_tty),
-   symbol_file_add      (const char *elf_filename);
 extern int  gdb_main_c (int argc, char **argv);
-extern void gdb_setup_readline_c(int editing);
 
-void addr2line (unsigned int addr)
+void addr2line (parser_t *parser, unsigned int addr)
 {
-   char
-      buf[128];
+    char
+	buf[128];
+    gdb_line_info_t
+	gdb_line_info;
 
-   sprintf(buf, "*0x%x", addr);
+    DECLARE_LOG_FP;
 
+    sprintf(buf, "*0x%x", addr);
 
-   /*
-    * format the symbol name, and limit the length of the printed field to only 30 characters.
-    */
-   info_line_command_c(buf, 45);
+    /*
+     * format the symbol name, and limit the length of the printed field to only 30 characters.
+     */
+    info_line_command_c(&gdb_line_info, buf);
+
+    fprintf(log_fp, "( %s - Line: %d, %s )",
+	    gdb_line_info.function_name,
+	    gdb_line_info.lineno,
+	    gdb_line_info.source_file_name);
 }
 
-static char
-   cmdline[128];
-
-
+/*-------------------------------------------------------------------------
+ *
+ * name:        addr2line_init
+ *
+ * description:
+ *
+ * input:
+ *
+ * output:
+ *
+ *-------------------------------------------------------------------------*/
 void addr2line_init (char *elf_file)
 {
-   char
-      *fake_argv[2],
-      *prc_str = "./process_tarmac";
-   int
-      fake_argc = 2;
+    char
+	*fake_argv[4];
+    int
+	fake_argc = 4;
 
-   sprintf(cmdline, "%s %s", prc_str, elf_file);
+    fake_argv[0] =  "./parseSaleae";
+    fake_argv[1] = "-q";
+    fake_argv[2] = "--nx";
+    fake_argv[3] = strdup(elf_file);
 
-   fake_argv[0] = cmdline;
-   fake_argv[1] = cmdline + strlen(prc_str)+1;
-   cmdline[16]=0;
-
-   /*
-    * Get gdb initialized, and load up the .elf file symbols.
-    */
-   gdb_main_c(fake_argc, fake_argv);
+    /*
+     * Get gdb initialized, and load up the .elf file symbols.
+     */
+    gdb_main_c(fake_argc, fake_argv);
 }
